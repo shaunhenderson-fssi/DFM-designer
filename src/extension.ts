@@ -26,6 +26,11 @@ const delphiColorMap: Record<string, string> = {
 	clmedgray: '#a0a0a4',
 };
 
+/**
+ * Converts a Delphi color value to a CSS-compatible color string. If the value is not recognized, it returns 'transparent'.
+ * @param value The Delphi color value to convert, which may be a named color or a hex string.
+ * @returns A CSS-compatible color string, or 'transparent' if the input is not recognized.
+ */
 function toHtmlColor(value: unknown): string {
 	const raw = String(value ?? '').trim();
 	if (!raw) {
@@ -40,19 +45,62 @@ function toHtmlColor(value: unknown): string {
 	return raw;
 }
 
-export function activate(context: vscode.ExtensionContext) {
+/**
+ * Updates the Width and Height properties of a specified component in the DFM text.
+ * @param dfmText The original DFM text as a string.
+ * @param componentName The name of the component whose size properties are to be updated.
+ * @param newWidth The new width value to set for the component.
+ * @param newHeight The new height value to set for the component.
+ * @returns A string containing the updated DFM text with the new Width and Height values for the specified component.
+ */
+function updateControlSize(dfmText: string, componentName: string, newWidth: number, newHeight: number): string {
+    const lines = dfmText.split(/\r?\n/);
 
+    let insideComponent = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const objectMatch = line.match(/^\s*object\s+(\w+)\s*:\s*\w+/i);
+
+        if (objectMatch) {
+            insideComponent = objectMatch[1] === componentName;
+            continue;
+        }
+
+        if (insideComponent && line.trim().toLowerCase() === 'end') {
+            break;
+        }
+
+        if (!insideComponent) {
+            continue;
+        }
+
+        if (/^\s*Width\s*=/.test(line)) {
+            const indent = line.match(/^\s*/)?.[0] ?? '';
+            lines[i] = `${indent}Width = ${Math.round(newWidth)}`;
+            continue;
+        }
+
+        if (/^\s*Height\s*=/.test(line)) {
+            const indent = line.match(/^\s*/)?.[0] ?? '';
+            lines[i] = `${indent}Height = ${Math.round(newHeight)}`;
+            continue;
+        }
+    }
+
+    return lines.join('\n');
+}
+
+export function activate(context: vscode.ExtensionContext) {
 	console.log('DFM Designer Activated');
 
-	vscode.window.showInformationMessage(
-		'DFM Designer Loaded'
-	);
-
+	vscode.window.showInformationMessage('Open a DFM file then press Ctrl+Shift+P and select "Preview Delphi DFM"'); //from title in package.json
+	//Message length:                    [                                                                   ]
 	const disposable =
 		vscode.commands.registerCommand(
 			'delphi-dfm-designer.previewDfm',
 			() => {
-
 				const panel =
 					vscode.window.createWebviewPanel(
 						'dfmPreview',
@@ -65,6 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 				const editor = vscode.window.activeTextEditor;
 				const dfmEditor = vscode.window.activeTextEditor;
+
 				if (!dfmEditor) {
 					return;
 				}
@@ -99,9 +148,11 @@ export function activate(context: vscode.ExtensionContext) {
 						.join('');
 			
 				panel.webview.onDidReceiveMessage(
-					message => {
+					async message => {
 						console.log('WebView Message:', JSON.stringify(message));
+
 						if (message.command === 'gotoComponent') {
+							//when the user clicks on a component in the webview, this will select the corresponding component in the DFM editor
 							const componentName = String(message.componentName ?? '').trim();
 							if (!componentName) {
 								return;
@@ -117,6 +168,34 @@ export function activate(context: vscode.ExtensionContext) {
 							dfmEditor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
 							vscode.window.showTextDocument(dfmEditor.document, dfmEditor.viewColumn);
 						}
+
+						if (message.command === 'resizeControl') {
+							//when the user resizes a component in the webview, this will update the corresponding component in the DFM editor
+							const text = editor.document.getText();
+
+							const updated = updateControlSize(
+									text,
+									message.componentName,
+									message.width,
+									message.height
+								);
+
+							const edit = new vscode.WorkspaceEdit();
+
+							edit.replace(
+								editor.document.uri,
+								new vscode.Range(
+									editor.document.positionAt(0),
+									editor.document.positionAt(
+										text.length
+									)
+								),
+								updated
+							);
+
+							await vscode.workspace.applyEdit(edit);
+						}
+
 					}
 				);
 
@@ -196,6 +275,12 @@ export function activate(context: vscode.ExtensionContext) {
 
 						<script>
 							const vscode = acquireVsCodeApi();
+							
+							let resizeControl = null;
+							let startX = 0;
+							let startY = 0;
+							let startWidth = 0;
+							let startHeight = 0;
 
 							function setActiveControl(control) {
 								document.querySelectorAll('.show-corners, .selected').forEach(el => {
@@ -212,6 +297,7 @@ export function activate(context: vscode.ExtensionContext) {
 							}
 
 							document.addEventListener('click', e => {
+								//selects (highlights) the current control in the webview and sends a message to the extension to select the corresponding component in the DFM editor
 								const target = e.target instanceof Element ? e.target : null;
 								const control = target?.closest('[data-name]');
 
@@ -248,6 +334,45 @@ export function activate(context: vscode.ExtensionContext) {
 										block: 'nearest'
 									});
 								}
+							});
+
+							document.addEventListener('mousedown', e => {
+								//resize the selected element by dragging the corners
+								if (!e.target.classList.contains('br')) {
+									return;
+								}
+
+								resizeControl = e.target.closest('.control');
+
+								startX = e.clientX;
+								startY = e.clientY;
+
+								startWidth = resizeControl.offsetWidth;
+								startHeight = resizeControl.offsetHeight;
+							});
+
+							document.addEventListener('mousemove', e => {
+								if (!resizeControl) {
+									return;
+								}
+
+								resizeControl.style.width = (startWidth + (e.clientX - startX)) + 'px';
+								resizeControl.style.height = (startHeight + (e.clientY - startY)) + 'px';
+							});
+
+							document.addEventListener('mouseup', () => {
+								if (!resizeControl) {
+									return;
+								}
+
+								vscode.postMessage({
+									command: 'resizeControl',
+									componentName: resizeControl.dataset.name,
+									width: resizeControl.offsetWidth,
+									height: resizeControl.offsetHeight
+								});
+
+								resizeControl = null;
 							});
 
 						</script>

@@ -5,6 +5,10 @@ export interface DfmComponent {
 	children: DfmComponent[];
 	lineNumber: number;
 	endLine: number;
+	widthLine: number;
+	heightLine: number;
+	leftLine: number;
+	topLine: number;
 }
 
 export function findComponentByName(components: DfmComponent[], name: string): DfmComponent | undefined {
@@ -60,7 +64,11 @@ export function parseDfm(text: string): DfmComponent[] {
 				properties: {},
 				children: [],
 				lineNumber: index,
-				endLine: index
+				endLine: index,
+				widthLine: -1,
+				heightLine: -1,
+				leftLine: -1,
+				topLine: -1
 			};
 
 			if (stack.length > 0) {

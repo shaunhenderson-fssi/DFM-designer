@@ -255,6 +255,7 @@ export function renderComponent(component: DfmComponent): string {
 		case 'TToolButton':
 		case 'TAKPSpeedButton':
 		case 'TBitBtn':
+			//TODO: handle buttons with images
 			return `
 				<button
 					id="${component.name}"
