@@ -144,6 +144,8 @@ export function activate(context: vscode.ExtensionContext) {
 					<head>
 						<title>${editor.document.fileName}</title>
 						<style>
+							.cursordefault { cursor:default; }
+
 							.control.selected {
 								/* CSS for when a HTML element is clicked */
 							}
@@ -158,7 +160,6 @@ export function activate(context: vscode.ExtensionContext) {
 								height: 15px;
 								background: #3d78b2;
 								display: none;
-								pointer-events: none;
 								z-index: 1000;
 							}
 
@@ -166,10 +167,10 @@ export function activate(context: vscode.ExtensionContext) {
 								display: block;
 							}
 
-							.tl { top: 0; left: 0; transform: translate(-50%, -50%); }
-							.tr { top: 0; right: 0; transform: translate(50%, -50%); }
-							.bl { bottom: 0; left: 0; transform: translate(-50%, 50%); }
-							.br { bottom: 0; right: 0; transform: translate(50%, 50%); }
+							.tl { top:0; left:0; transform:translate(-50%, -50%); cursor:nwse-resize !important; z-index: 1000; }
+							.tr { top:0; right:0; transform:translate(50%, -50%); cursor:nesw-resize !important; z-index: 1000; }
+							.bl { bottom:0; left:0; transform:translate(-50%, 50%); cursor:nesw-resize !important; z-index: 1000; }
+							.br { bottom:0; right:0; transform:translate(50%, 50%); cursor:nwse-resize !important; z-index: 1000; }
 						</style>
 					</head>
 					<body>
