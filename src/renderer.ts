@@ -259,10 +259,10 @@ export function renderComponent(component: DfmComponent): string {
 			return `
 				<button
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					title="${escapeHtml(component.name || component.properties.OnClick)}"
-					class="cursordefault"
+					class="cursordefault control"
 					style="
 						${position}
 						${font}
@@ -277,10 +277,10 @@ export function renderComponent(component: DfmComponent): string {
 			return `
 				<div
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					title="${escapeHtml(component.name)}"
-					class="cursordefault"
+					class="cursordefault control"
 					style="
 						${position}
 						${font}
@@ -299,10 +299,10 @@ export function renderComponent(component: DfmComponent): string {
 			return `
 				<div
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					title="${escapeHtml(component.name)}"
-					class="cursordefault"
+					class="cursordefault control"
 					style="
 						${position}
 						${font}
@@ -321,13 +321,13 @@ export function renderComponent(component: DfmComponent): string {
 					${renderWithCorners('')}
 					<input
 						id="${component.name}"
-						data-lineNumber="${component.lineNumber}"
+						data-line="${component.lineNumber}"
 						data-name="${component.name}"
 						title="${escapeHtml(component.name)}"
 						type="text"
 						readonly
 						value="${caption}"
-						class="cursordefault"
+						class="cursordefault control"
 						style="
 							width: 100%;
 							height: 100%;
@@ -343,11 +343,11 @@ export function renderComponent(component: DfmComponent): string {
 					${renderWithCorners('')}
 					<textarea
 						id="${component.name}"
-						data-lineNumber="${component.lineNumber}"
+						data-line="${component.lineNumber}"
 						data-name="${component.name}"
 						title="${escapeHtml(component.name)}"
 						readonly
-						class="cursordefault"
+						class="cursordefault control"
 						style="
 							width: 100%;
 							height: 100%;
@@ -362,10 +362,10 @@ export function renderComponent(component: DfmComponent): string {
 			return `
 				<div
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					title="${escapeHtml(component.name)}"
-					class="cursordefault"
+					class="cursordefault control"
 					style="
 						${position}
 						${font}
@@ -384,7 +384,7 @@ export function renderComponent(component: DfmComponent): string {
 			return `
 				<div
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					title="${escapeHtml(component.name)}"
 					style="
@@ -397,7 +397,7 @@ export function renderComponent(component: DfmComponent): string {
 					${hasSrc ? `<img
 						alt="${escapeHtml(component.name)}"
 						src="${src}"
-						class="cursordefault"
+						class="cursordefault control"
 						style="
 							width:100%;
 							height:100%;
@@ -416,7 +416,7 @@ export function renderComponent(component: DfmComponent): string {
 			return `
 				<div
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					title="${escapeHtml(component.name)}"
 					style="
@@ -428,7 +428,7 @@ export function renderComponent(component: DfmComponent): string {
 					${renderCorners()}
 					${hasSrc ? `<img
 						src="${src}"
-						class="cursordefault"
+						class="cursordefault control"
 						style="
 							width:100%; 
 							height:100%; 
@@ -443,8 +443,9 @@ export function renderComponent(component: DfmComponent): string {
 			return `
 				<div
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
+					class="cursordefault control"
 					style="
 						${position}
 						text-align: center;
@@ -453,7 +454,6 @@ export function renderComponent(component: DfmComponent): string {
 					${renderWithCorners('')}
 					<div
 						title="${escapeHtml(component.properties.OnTimer)}"
-						class="cursordefault"
 						style="
 							width: 25px;
 							height: 25px;
@@ -479,11 +479,11 @@ export function renderComponent(component: DfmComponent): string {
 				${renderWithCorners('')}
 				<input
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					type="checkbox"
 					title="${escapeHtml(component.name)}" 
-					class="cursordefault"
+					class="cursordefault control"
 					style="${position}" 
 					disabled
 					${component.properties.Checked === 'True' ? 'checked' : ''}
@@ -495,12 +495,12 @@ export function renderComponent(component: DfmComponent): string {
 				${renderWithCorners('')}
 				<input
 					id="${component.name}"
-					data-lineNumber="${component.lineNumber}"
+					data-line="${component.lineNumber}"
 					data-name="${component.name}"
 					type="range"
 					min="${component.properties.Min ?? 0}"
 					max="${component.properties.Max ?? 100}"
-					class="cursordefault"
+					class="cursordefault control"
 					style="${position}" 
 				>
 			`;
@@ -508,9 +508,10 @@ export function renderComponent(component: DfmComponent): string {
 
 	return `
 		<div
-			data-lineNumber="${component.lineNumber}"
+			data-line="${component.lineNumber}"
 			data-name="${component.name}"
 			title="${escapeHtml(component.className)}"
+			class="control"
 			style="
 				cursor: help;
 				${position}

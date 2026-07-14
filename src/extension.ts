@@ -92,6 +92,49 @@ function updateControlSize(dfmText: string, componentName: string, newWidth: num
     return lines.join('\n');
 }
 
+/**
+ * Updates the Left and Top properties of a specified component in the DFM text.
+ * @param dfmText The original DFM text as a string.
+ * @param componentName The name of the component whose position properties are to be updated.
+ * @param newLeft The new left position value to set for the component.
+ * @param newTop The new top position value to set for the component.
+ * @returns A string containing the updated DFM text with the new Left and Top values for the specified component.
+ */
+function updateControlPosition(dfmText: string, componentName: string, newLeft: number, newTop: number): string {
+    const lines = dfmText.split(/\r?\n/);
+
+    let insideComponent = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const objectMatch = lines[i].match(/^\s*object\s+(\w+)\s*:\s*\w+/i);
+
+        if (objectMatch) {
+            insideComponent = objectMatch[1] === componentName;
+            continue;
+        }
+
+        if (insideComponent && lines[i].trim() === 'end') {
+            break;
+        }
+
+        if (!insideComponent) {
+            continue;
+        }
+
+        if (/^\s*Left\s*=/.test(lines[i])) {
+            const indent = lines[i].match(/^\s*/)?.[0] ?? '';
+            lines[i] = `${indent}Left = ${Math.round(newLeft)}`;
+        }
+
+        if (/^\s*Top\s*=/.test(lines[i])) {
+            const indent = lines[i].match(/^\s*/)?.[0] ?? '';
+            lines[i] = `${indent}Top = ${Math.round(newTop)}`;
+        }
+    }
+
+    return lines.join('\n');
+}
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('DFM Designer Activated');
 
@@ -196,6 +239,30 @@ export function activate(context: vscode.ExtensionContext) {
 							await vscode.workspace.applyEdit(edit);
 						}
 
+						if (message.command === 'moveControl') {
+							const updatedText =
+								updateControlPosition(
+									editor.document.getText(),
+									message.componentName,
+									message.left,
+									message.top
+								);
+
+							const edit = new vscode.WorkspaceEdit();
+
+							edit.replace(
+								editor.document.uri,
+								new vscode.Range(
+									editor.document.positionAt(0),
+									editor.document.positionAt(
+										editor.document.getText().length
+									)
+								),
+								updatedText
+							);
+
+							vscode.workspace.applyEdit(edit);
+						}
 					}
 				);
 
@@ -223,10 +290,16 @@ export function activate(context: vscode.ExtensionContext) {
 					<head>
 						<title>${editor.document.fileName}</title>
 						<style>
-							.cursordefault { cursor:default; }
+							.cursordefault { 
+								cursor:default; 
+							}
 
 							.control.selected {
 								/* CSS for when a HTML element is clicked */
+							}
+
+							.control {
+								user-select: none;
 							}
 
 							.show-corners {
@@ -246,10 +319,10 @@ export function activate(context: vscode.ExtensionContext) {
 								display: block;
 							}
 
-							.tl { top:0; left:0; transform:translate(-50%, -50%); cursor:nwse-resize !important; z-index: 1000; }
-							.tr { top:0; right:0; transform:translate(50%, -50%); cursor:nesw-resize !important; z-index: 1000; }
-							.bl { bottom:0; left:0; transform:translate(-50%, 50%); cursor:nesw-resize !important; z-index: 1000; }
-							.br { bottom:0; right:0; transform:translate(50%, 50%); cursor:nwse-resize !important; z-index: 1000; }
+							.tl { top:0; left:0; transform:translate(-50%, -50%); cursor:nwse-resize !important; z-index:1000; }
+							.tr { top:0; right:0; transform:translate(50%, -50%); cursor:nesw-resize !important; z-index:1000; }
+							.bl { bottom:0; left:0; transform:translate(-50%, 50%); cursor:nesw-resize !important; z-index:1000; }
+							.br { bottom:0; right:0; transform:translate(50%, 50%); cursor:nwse-resize !important; z-index:1000; }
 						</style>
 					</head>
 					<body>
@@ -274,13 +347,24 @@ export function activate(context: vscode.ExtensionContext) {
 						</div>
 
 						<script>
+							//the console.log stuff in here will show in the new VS Code window.
+							//press Ctrl+Shift+P, then choose "Developer: Open Webview Developer Tools"
+
 							const vscode = acquireVsCodeApi();
 							
+							//for resizing
 							let resizeControl = null;
 							let startX = 0;
 							let startY = 0;
 							let startWidth = 0;
 							let startHeight = 0;
+
+							//for moving
+							let dragControl = null;
+							let dragStartX = 0;
+							let dragStartY = 0;
+							let controlStartLeft = 0;
+							let controlStartTop = 0;
 
 							function setActiveControl(control) {
 								document.querySelectorAll('.show-corners, .selected').forEach(el => {
@@ -295,23 +379,6 @@ export function activate(context: vscode.ExtensionContext) {
 								control.classList.add('show-corners');
 								control.classList.add('selected');
 							}
-
-							document.addEventListener('click', e => {
-								//selects (highlights) the current control in the webview and sends a message to the extension to select the corresponding component in the DFM editor
-								const target = e.target instanceof Element ? e.target : null;
-								const control = target?.closest('[data-name]');
-
-								if (!control) {
-									return;
-								}
-
-								setActiveControl(control);
-
-								vscode.postMessage({
-									command: 'gotoComponent',
-									componentName: control.dataset.name
-								});
-							});
 
 							window.addEventListener('message', event => {
 								const message = event.data;
@@ -336,45 +403,121 @@ export function activate(context: vscode.ExtensionContext) {
 								}
 							});
 
+							document.addEventListener('click', e => {
+								//selects (highlights) the current control in the webview and sends a message to the extension to select the corresponding component in the DFM editor
+								const target = e.target instanceof Element ? e.target : null;
+								const control = target?.closest('[data-name]');
+
+								if (!control) {
+									return;
+								}
+
+								setActiveControl(control);
+
+								vscode.postMessage({
+									command: 'gotoComponent',
+									componentName: control.dataset.name
+								});
+							});
+
 							document.addEventListener('mousedown', e => {
-								//resize the selected element by dragging the corners
+								console.log('mousedown');
+								const control = e.target.closest('[data-name]') || e.target.closest('.control');
+								console.log(control);
+
+								if (!control) {
+									return;
+								}
+
 								if (!e.target.classList.contains('br')) {
 									return;
 								}
 
-								resizeControl = e.target.closest('.control');
+								if (e.target.classList.contains('corner')) {
+									//resize the selected element by dragging the corners
+									e.preventDefault();
 
-								startX = e.clientX;
-								startY = e.clientY;
+									resizeControl = control;
 
-								startWidth = resizeControl.offsetWidth;
-								startHeight = resizeControl.offsetHeight;
+									startX = e.clientX;
+									startY = e.clientY;
+
+									startWidth = resizeControl.offsetWidth;
+									startHeight = resizeControl.offsetHeight;
+								} else {
+									//move a control by dragging
+									const dragControl = control;
+
+									if (!dragControl) {
+										return;
+									}
+
+									e.preventDefault();
+
+									dragStartX = e.clientX;
+									dragStartY = e.clientY;
+
+									controlStartLeft = parseInt(dragControl.style.left || '0');
+									controlStartTop = parseInt(dragControl.style.top || '0');
+								}
 							});
 
 							document.addEventListener('mousemove', e => {
+								console.log('resizeControl', resizeControl, 'dragControl', dragControl);
 								if (!resizeControl) {
-									return;
-								}
+									//move
+									if (!dragControl) {
+										return;
+									}
 
-								resizeControl.style.width = (startWidth + (e.clientX - startX)) + 'px';
-								resizeControl.style.height = (startHeight + (e.clientY - startY)) + 'px';
+									console.log('mousemove, dragControl');
+									e.preventDefault();
+
+									const dx = e.clientX - dragStartX;
+									const dy = e.clientY - dragStartY;
+
+									dragControl.style.left = (controlStartLeft + dx) + 'px';
+									dragControl.style.top = (controlStartTop + dy) + 'px';
+								} else {
+									//resize
+									console.log('mousemove, resizeControl');
+
+									e.preventDefault();
+									resizeControl.style.width = (startWidth + (e.clientX - startX)) + 'px';
+									resizeControl.style.height = (startHeight + (e.clientY - startY)) + 'px';
+								}
 							});
 
 							document.addEventListener('mouseup', () => {
+								console.log('mouseup');
+
 								if (!resizeControl) {
-									return;
+									//move
+									if (!dragControl) {
+										return;
+									}
+									console.log('dragControl');
+									vscode.postMessage({
+										command: 'moveControl',
+										componentName: dragControl.dataset.name,
+										left: dragControl.offsetLeft,
+										top: dragControl.offsetTop
+									});
+
+									dragControl = null;
+								} else {
+									//resize
+									console.log('resizeControl');
+									vscode.postMessage({
+										command: 'resizeControl',
+										componentName: resizeControl.dataset.name,
+										width: resizeControl.offsetWidth,
+										height: resizeControl.offsetHeight
+									});
+
+									resizeControl = null;
 								}
-
-								vscode.postMessage({
-									command: 'resizeControl',
-									componentName: resizeControl.dataset.name,
-									width: resizeControl.offsetWidth,
-									height: resizeControl.offsetHeight
-								});
-
-								resizeControl = null;
 							});
-
 						</script>
 					</body>
 					</html>
