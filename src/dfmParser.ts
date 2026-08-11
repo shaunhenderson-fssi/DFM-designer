@@ -1,3 +1,4 @@
+//for normal delphi objects
 export interface DfmComponent {
 	name: string;
 	className: string;
@@ -9,6 +10,20 @@ export interface DfmComponent {
 	heightLine: number;
 	leftLine: number;
 	topLine: number;
+}
+
+//for TImageCollection
+export interface DfmCollectionItem {
+	properties: Record<string, any>; //top, left
+	children: ImageCollectionItem[];
+}
+
+interface ImageCollectionItem {
+	name: string;
+	description: string;
+	imageData: string;
+	left: number;
+	top: number;
 }
 
 export function findComponentByName(components: DfmComponent[], name: string): DfmComponent | undefined {
@@ -46,6 +61,177 @@ function normalizePropertyName(name: string): string {
 		.split('.')
 		.map((segment, index) => index === 0 ? segment : segment.charAt(0).toUpperCase() + segment.slice(1))
 		.join('');
+}
+
+function parseImageCollection(lines: string[], startIndex: number): {
+	images: any[]; endIndex: number; collectionProps?: Record<string, any>
+} {
+	const images: ImageCollectionItem[] = [];
+
+	let currentImage: ImageCollectionItem | null = null;
+	let inSourceImages = false;
+	let collectionDepth = 1;
+	const collectionProps: Record<string, any> = {};
+
+	let index = startIndex;
+
+	for (; index < lines.length; index++) {
+		const trimmed = lines[index].trim();
+		
+		if (trimmed === '<') {
+			collectionDepth++;
+			continue;
+		}
+
+		// End of Images = <
+		if (trimmed === '>') {
+			collectionDepth--;
+			if (collectionDepth === 0) {
+				break;
+			}
+			continue;
+		}
+
+		if (trimmed === '>' && inSourceImages) {
+			inSourceImages = false;
+			continue;
+		}
+
+		if (trimmed === '>' && !inSourceImages) {
+			break;
+		}
+
+		// New image item
+		if (trimmed === 'item' && !inSourceImages) {
+			currentImage = {
+				name: '',
+				description: '',
+				imageData: '',
+				left: 0,
+				top: 0
+			};
+
+			images.push(currentImage);
+			continue;
+		}
+
+		// End image item
+		if (trimmed === 'end' && !inSourceImages) {
+			currentImage = null;
+			continue;
+		}
+
+
+		// If we're not inside a current image item, still allow capturing
+		// collection-level simple properties like Left/Top that sometimes
+		// appear around the Images block in DFM files.
+		if (!currentImage) {
+			// Left
+			const collLeftMatch = trimmed.match(/^Left\s*=\s*(\d+)$/i);
+			if (collLeftMatch) {
+				collectionProps.Left = Number(collLeftMatch[1]);
+				continue;
+			}
+
+			// Top
+			const collTopMatch = trimmed.match(/^Top\s*=\s*(\d+)$/i);
+			if (collTopMatch) {
+				collectionProps.Top = Number(collTopMatch[1]);
+				continue;
+			}
+
+			// If not a collection-level property, skip until we find an item
+			continue;
+		}
+
+		// Name
+		const nameMatch = trimmed.match(/^Name\s*=\s*'(.*)'$/i);
+		if (nameMatch) {
+			currentImage.name = nameMatch[1].replace(/''/g, "'");
+			continue;
+		}
+
+		// Description
+		const descMatch = trimmed.match(/^Description\s*=\s*'(.*)'$/i);
+		if (descMatch) {
+			currentImage.description = descMatch[1].replace(/''/g, "'");
+			continue;
+		}
+
+		const leftMatch = trimmed.match(/^Left\s*=\s*(\d+)$/i);
+
+		if (leftMatch) {
+			currentImage.left = Number(leftMatch[1]);
+			continue;
+		}
+
+		const topMatch = trimmed.match(/^Top\s*=\s*(\d+)$/i);
+
+		if (topMatch) {
+			currentImage.top = Number(topMatch[1]);
+			continue;
+		}
+
+		// SourceImages = <
+		if (trimmed.startsWith('SourceImages')) {
+			inSourceImages = true;
+			continue;
+		}
+
+		// End SourceImages collection
+		if (trimmed === 'end>' && inSourceImages) {
+			// Peek ahead.
+			// Another end> means source image item ended.
+			// A plain end means image item ended.
+			const nextLine = index + 1 < lines.length ? lines[index + 1].trim() : '';
+
+			if (nextLine === 'end') {
+				inSourceImages = false;
+			}
+
+			continue;
+		}
+
+		// Image.Data
+		if (trimmed.startsWith('Image.Data')) {
+			const imageLines: string[] = [];
+
+			// First line might contain hex after {
+			const openBracePos = trimmed.indexOf('{');
+
+			let firstPart = openBracePos >= 0 ? trimmed.substring(openBracePos + 1).trim() : '';
+
+			if (firstPart && firstPart !== '}') {
+				imageLines.push(firstPart.replace('}', ''));
+			}
+
+			// Read until closing brace
+			for (index += 1; index < lines.length; index++) {
+				const imageLine = lines[index].trim();
+
+				if (imageLine.includes('}')) {
+					imageLines.push(
+						imageLine.replace('}', '').trim()
+					);
+
+					break;
+				}
+
+				imageLines.push(imageLine);
+			}
+
+			currentImage.imageData =
+				imageLines.join('').trim();
+
+			continue;
+		}
+	}
+
+	return {
+		images,
+		endIndex: index,
+		collectionProps: Object.keys(collectionProps).length ? collectionProps : undefined
+	};
 }
 
 export function parseDfm(text: string): DfmComponent[] {
@@ -95,7 +281,9 @@ export function parseDfm(text: string): DfmComponent[] {
 			const propertyName = normalizePropertyName(propertyMatch[1]);
 			const rawValue = propertyMatch[2].trim();
 
-			if (rawValue === '{') {
+			// Debug logging removed to reduce noise during parsing
+
+			if (rawValue.startsWith('{')) {
 				const blockLines: string[] = [];
 				for (index += 1; index < lines.length; index++) {
 					const blockLine = lines[index];
@@ -113,7 +301,7 @@ export function parseDfm(text: string): DfmComponent[] {
 				continue;
 			}
 
-			if (rawValue === '(') {
+			if (rawValue.startsWith('(')) {
 				const blockLines: string[] = [];
 				for (index += 1; index < lines.length; index++) {
 					const blockLine = lines[index];
@@ -131,8 +319,78 @@ export function parseDfm(text: string): DfmComponent[] {
 				continue;
 			}
 
+			if (
+				stack.length > 0 &&
+				stack[stack.length - 1].className === 'TImageCollection' &&
+				propertyName === 'Images' &&
+				rawValue.startsWith('<')
+			) {
+				const result = parseImageCollection(lines, index + 1);
+				stack[stack.length - 1].properties.Images = JSON.stringify(result.images);
+				// If parseImageCollection captured collection-level props (Left/Top), apply them
+				if (result.collectionProps) {
+					if (result.collectionProps.Left !== undefined && !stack[stack.length - 1].properties.Left) {
+						stack[stack.length - 1].properties.Left = String(result.collectionProps.Left);
+					}
+					if (result.collectionProps.Top !== undefined && !stack[stack.length - 1].properties.Top) {
+						stack[stack.length - 1].properties.Top = String(result.collectionProps.Top);
+					}
+				}
+					// Also look ahead a few lines after the Images block to catch
+					// Left/Top lines that appear immediately after the block in some DFM files.
+					let peek = result.endIndex + 1;
+					for (; peek < lines.length; peek++) {
+						const t = lines[peek].trim();
+						// stop if we hit the end of the object or a nested object
+						if (t === 'end' || /^object\s+\w+\s*:\s*\w+/i.test(t)) {
+							break;
+						}
+						const lmatch = t.match(/^Left\s*=\s*(\d+)$/i);
+						if (lmatch && !stack[stack.length - 1].properties.Left) {
+							stack[stack.length - 1].properties.Left = lmatch[1];
+							continue;
+						}
+						const tmatch = t.match(/^Top\s*=\s*(\d+)$/i);
+						if (tmatch && !stack[stack.length - 1].properties.Top) {
+							stack[stack.length - 1].properties.Top = tmatch[1];
+							continue;
+						}
+						// if other property encountered, skip
+					}
+					// set index to the line before peek so the main loop continues at peek
+					index = Math.max(result.endIndex, peek - 1);
+				continue;
+			}
+
 			stack[stack.length - 1].properties[propertyName] = propertyMatch[2];
 		}
+	}
+
+	// Post-process: map Left/Top lines to the nearest preceding object declaration.
+	// This is robust for very large Images blocks where those properties end up
+	// far after the initial declaration.
+	const decls: Array<{name:string, index:number}> = [];
+	for (let i = 0; i < lines.length; i++) {
+		const m = lines[i].match(/^\s*object\s+(\w+)\s*:\s*(\w+)/);
+		if (m) decls.push({ name: m[1], index: i });
+	}
+
+	// Find all Left/Top occurrences and assign to the nearest preceding declaration
+	for (let i = 0; i < lines.length; i++) {
+		const l = lines[i].match(/^\s*Left\s*=\s*(\d+)$/i);
+		const t = lines[i].match(/^\s*Top\s*=\s*(\d+)$/i);
+		if (!l && !t) continue;
+		// find decl with highest index <= i
+		let best: {name:string,index:number} | null = null;
+		for (const d of decls) {
+			if (d.index <= i && (!best || d.index > best.index)) best = d;
+		}
+		if (!best) continue;
+		// find component in roots
+		const comp = findComponentByName(roots, best.name);
+		if (!comp) continue;
+		if (l && !comp.properties.Left) comp.properties.Left = l[1];
+		if (t && !comp.properties.Top) comp.properties.Top = t[1];
 	}
 
 	return roots;

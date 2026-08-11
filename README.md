@@ -27,6 +27,10 @@ This extension contributes the following settings:
 * `myExtension.enable`: Enable/disable this extension.
 * `myExtension.thing`: Set to `blah` to do something.
 
+## Usage
+
+Open a .dfm file, then press Ctrl+Shift+P and select "Preview Delphi DFM"
+
 ## Known Issues
 
 Calling out known issues can help limit users opening duplicate issues against your extension.
