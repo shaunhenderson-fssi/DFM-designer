@@ -439,11 +439,10 @@ export function renderComponent(component: DfmComponent): string {
 			`;
 		}
 		
-		case 'TTimer':
-			{
-				const icon = '⏰';
+		case 'TTimer': {
+			const icon = '⏰';
 
-				return `
+			return `
 				<div
 					id="${component.name}"
 					data-line="${component.lineNumber}"
@@ -475,74 +474,75 @@ export function renderComponent(component: DfmComponent): string {
 					</div>
 				</div>
 			`;
-			}
+		}
 
 		case 'TImageCollection': {
-				// The parser stores images as a JSON string in properties.Images. Provide robust fallbacks
-				// for Left/Top/Width/Height parsing and layout when those values are missing or strings.
-				let itemsHtml = '';
-				try {
-					let images: any[] = [];
-					const raw = component.properties.Images;
-					if (!raw) images = [];
-					else if (typeof raw === 'string') {
-						images = JSON.parse(raw || '[]');
-					} else if (Array.isArray(raw)) {
-						images = raw;
-					} else {
-						images = [];
-					}
-
-					// helper to normalize numeric-ish values
-					const parseNum = (v: any): number | null => {
-						if (v === undefined || v === null) return null;
-						if (typeof v === 'number' && !isNaN(v)) return v;
-						if (typeof v === 'string') {
-							const m = v.match(/-?\d+/);
-							if (m) return parseInt(m[0], 10);
-						}
-						if (typeof v === 'object') {
-							// maybe nested as {Left: '10'}
-							if (v.Left) return parseNum(v.Left);
-							if (v.left) return parseNum(v.left);
-						}
-						return null;
-					};
-
-					const GAP = 4;
-					itemsHtml = images.map((it: any, idx: number) => {
-						const src = toImageSource(it.imageData ?? it.ImageData ?? it.image ?? it.Image ?? '');
-						let leftNum = parseNum(it.left ?? it.Left ?? it.LeftPosition ?? it.LeftValue ?? null);
-						let topNum = parseNum(it.top ?? it.Top ?? it.TopPosition ?? it.TopValue ?? null);
-						let wNum = parseNum(it.Width ?? it.WidthPx ?? it.width ?? null);
-						let hNum = parseNum(it.Height ?? it.HeightPx ?? it.height ?? null);
-
-						// reasonable defaults
-						if (wNum === null || wNum <= 0) wNum = 32;
-						if (hNum === null || hNum <= 0) hNum = 32;
-
-						// If no explicit position, layout items in a row with small gap
-						if (leftNum === null) leftNum = idx * (wNum + GAP);
-						if (topNum === null) topNum = 0;
-
-						// clamp to integers
-						leftNum = Math.round(leftNum);
-						topNum = Math.round(topNum);
-						wNum = Math.round(wNum);
-						hNum = Math.round(hNum);
-
-						const left = toPx(leftNum, 0);
-						const top = toPx(topNum, 0);
-						const w = toPx(wNum, 32);
-						const h = toPx(hNum, 32);
-
-						return `<div style="position:absolute; left:${left}; top:${top}; width:${w}; height:${h}; overflow:hidden;"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border:none;" alt="${escapeHtml(it.name||it.Name||('img'+idx))}"></div>`;
-					}).join('');
-				} catch (e) {
-					itemsHtml = '';
+			// The parser stores images as a JSON string in properties.Images. Provide robust fallbacks
+			// for Left/Top/Width/Height parsing and layout when those values are missing or strings.
+			let itemsHtml = '';
+			try {
+				let images: any[] = [];
+				const raw = component.properties.Images;
+				if (!raw) { images = []; }
+				else if (typeof raw === 'string') {
+					images = JSON.parse(raw || '[]');
+				} else if (Array.isArray(raw)) {
+					images = raw;
+				} else {
+					images = [];
 				}
 
-				return `
+				// helper to normalize numeric-ish values
+				const parseNum = (v: any): number | null => {
+					if (v === undefined || v === null) { return null; }
+					if (typeof v === 'number' && !isNaN(v)) {return v; }
+					if (typeof v === 'string') {
+						const m = v.match(/-?\d+/);
+						if (m) { return parseInt(m[0], 10); }
+					}
+					if (typeof v === 'object') {
+						// maybe nested as {Left: '10'}
+						if (v.Left) { return parseNum(v.Left); }
+						if (v.left) { return parseNum(v.left); }
+					}
+					return null;
+				};
+
+				const GAP = 4;
+				itemsHtml = images.map((it: any, idx: number) => {
+					const src = toImageSource(it.imageData ?? it.ImageData ?? it.image ?? it.Image ?? '');
+					let leftNum = parseNum(it.left ?? it.Left ?? it.LeftPosition ?? it.LeftValue ?? null);
+					let topNum = parseNum(it.top ?? it.Top ?? it.TopPosition ?? it.TopValue ?? null);
+					let wNum = parseNum(it.Width ?? it.WidthPx ?? it.width ?? null);
+					let hNum = parseNum(it.Height ?? it.HeightPx ?? it.height ?? null);
+
+					// reasonable defaults
+					if (wNum === null || wNum <= 0) { wNum = 32; }
+					if (hNum === null || hNum <= 0) { hNum = 32; }
+
+					// If no explicit position, layout items in a row with small gap
+					if (leftNum === null) { leftNum = idx * (wNum + GAP); }
+					if (topNum === null) { topNum = 0; }
+
+					// clamp to integers
+					leftNum = Math.round(leftNum);
+					topNum = Math.round(topNum);
+					wNum = Math.round(wNum);
+					hNum = Math.round(hNum);
+
+					const left = toPx(leftNum, 0);
+					const top = toPx(topNum, 0);
+					const w = toPx(wNum, 32);
+					const h = toPx(hNum, 32);
+
+					return `<div style="position:absolute; left:${left}; top:${top}; width:${w}; height:${h}; overflow:hidden;">
+						<img src="${src}" style="width:100%;height:100%;object-fit:contain;border:none;" alt="${escapeHtml(it.name || it.Name || ('img' + idx))}"></div>`;
+				}).join('');
+			} catch (e) {
+				itemsHtml = '';
+			}
+
+			return `
 				<div
 					id="${component.name}"
 					data-line="${component.lineNumber}"
@@ -557,7 +557,8 @@ export function renderComponent(component: DfmComponent): string {
 					${renderCorners()}
 					${itemsHtml}
 				</div>`;
-			}
+		}
+			
 		case 'TCheckBox':
 			return `
 				${renderWithCorners('')}
