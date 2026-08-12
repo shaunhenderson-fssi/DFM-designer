@@ -195,6 +195,45 @@ function commonPosition(component: DfmComponent): string {
 	return `position:absolute; left:${left}; top:${top}; width:${width}; height:${height};`;
 }
 
+function parseGridTracks(collection: unknown, usePercent = false): string[] {
+	if (!Array.isArray(collection)) {
+		return [];
+	}
+
+	const values = collection.map((item: any) => {
+		if (!item || typeof item !== 'object') {
+			return 'auto';
+		}
+
+		if (item.Value !== undefined) {
+			const num = Number(item.Value);
+			if (!Number.isNaN(num)) {
+				return String(num);
+			}
+		}
+
+		if (typeof item.SizeStyle === 'string' && item.SizeStyle.includes('ssAuto')) {
+			return 'auto';
+		}
+
+		return 'auto';
+	});
+
+	if (!usePercent) {
+		return values;
+	}
+
+	const numericValues = values.map(v => Number(v));
+	const allNumeric = numericValues.every((v, idx) => !Number.isNaN(v) && values[idx] !== 'auto');
+	const sum = numericValues.reduce((acc, value) => acc + (Number.isNaN(value) ? 0 : value), 0);
+
+	if (allNumeric && Math.abs(sum - 100) <= 0.5) {
+		return numericValues.map(v => `${v}%`);
+	}
+
+	return values.map(v => (v === 'auto' ? 'auto' : `${v}fr`));
+}
+
 /**
  * Generates the common CSS font styles for a DFM component based on its properties. This includes font size, weight, style, and family.
  * @param component The DFM component for which to generate font styles.
@@ -238,9 +277,9 @@ function renderWithCorners(content: string): string {
  * @param component The DFM component to render, which may have children that will also be rendered recursively.
  * @returns A string containing the HTML representation of the component and its children.
  */
-export function renderComponent(component: DfmComponent): string {
-	const children = component.children.map(renderComponent).join('');
-	const position = commonPosition(component);
+export function renderComponent(component: DfmComponent, skipPosition = false): string {
+	const children = component.children.map(child => renderComponent(child)).join('');
+	const position = skipPosition ? '' : commonPosition(component);
 	const font = commonFont(component);
 	const caption = escapeHtml(getText(component.properties.Caption ?? component.properties.Text ?? ''));
 	
@@ -250,7 +289,6 @@ export function renderComponent(component: DfmComponent): string {
 		: 'left';
 
 	switch (component.className) {
-
 		case 'TButton':
 		case 'TToolButton':
 		case 'TAKPSpeedButton':
@@ -295,7 +333,7 @@ export function renderComponent(component: DfmComponent): string {
 				</div>`;
 
 		case 'TPanel':
-		case 'TPageControl':
+		case 'TPageControl': {
 			return `
 				<div
 					id="${component.name}"
@@ -313,7 +351,46 @@ export function renderComponent(component: DfmComponent): string {
 				>
 					${renderWithCorners(children)}
 				</div>`;
+		}
+		case 'TGridPanel': {
+			const columnTracks = parseGridTracks(component.properties.ColumnCollection, true);
+			const rowTracks = parseGridTracks(component.properties.RowCollection, true);
+			const controlCollection = Array.isArray(component.properties.ControlCollection) ? component.properties.ControlCollection : [];
+			const gridTemplateColumns = columnTracks.length ? `grid-template-columns: ${columnTracks.join(' ')};` : '';
+			const gridTemplateRows = rowTracks.length ? `grid-template-rows: ${rowTracks.join(' ')};` : '';
 
+			const gridChildren = component.children.map(child => {
+				const controlItem = controlCollection.find((item: any) => item.Control === child.name);
+				const col = controlItem && !Number.isNaN(Number(controlItem.Column)) ? Number(controlItem.Column) + 1 : 'auto';
+				const row = controlItem && !Number.isNaN(Number(controlItem.Row)) ? Number(controlItem.Row) + 1 : 'auto';
+				return `
+					<div style="grid-column: ${col}; grid-row: ${row}; position: relative; min-width: 0; min-height: 0;">
+						${renderComponent(child, true)}
+					</div>`;
+			}).join('');
+
+			return `
+				<div
+					id="${component.name}"
+					data-line="${component.lineNumber}"
+					data-name="${component.name}"
+					title="${escapeHtml(component.name)}"
+					class="cursordefault control"
+					style="
+						${position}
+						${font}
+						background: ${toHtmlColor(component.properties.Color ?? 'transparent')};
+						color: ${toHtmlColor(component.properties.FontColor ?? 'black')};
+						overflow: hidden;
+						position: absolute;
+						display: grid;
+						${gridTemplateColumns}
+						${gridTemplateRows}
+					"
+				>
+					${renderWithCorners(gridChildren)}
+				</div>`;
+		}
 		case 'TEdit':
 		case 'TAKPEdit':
 			return `
@@ -408,7 +485,6 @@ export function renderComponent(component: DfmComponent): string {
 				</div>
 			`;
 		}
-		
 		case 'TIcon': {
 			const src = toImageSource(component.properties.PictureData ?? component.properties.Picture ?? '');
 			const hasSrc = Boolean(src);
@@ -438,7 +514,6 @@ export function renderComponent(component: DfmComponent): string {
 				</div>
 			`;
 		}
-		
 		case 'TTimer': {
 			const icon = '⏰';
 
@@ -475,7 +550,6 @@ export function renderComponent(component: DfmComponent): string {
 				</div>
 			`;
 		}
-
 		case 'TImageCollection': {
 			// The parser stores images as a JSON string in properties.Images. Provide robust fallbacks
 			// for Left/Top/Width/Height parsing and layout when those values are missing or strings.
@@ -558,7 +632,6 @@ export function renderComponent(component: DfmComponent): string {
 					${itemsHtml}
 				</div>`;
 		}
-			
 		case 'TCheckBox':
 			return `
 				${renderWithCorners('')}

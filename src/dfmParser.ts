@@ -2,7 +2,7 @@
 export interface DfmComponent {
 	name: string;
 	className: string;
-	properties: Record<string, string>;
+	properties: Record<string, any>;
 	children: DfmComponent[];
 	lineNumber: number;
 	endLine: number;
@@ -63,17 +63,62 @@ function normalizePropertyName(name: string): string {
 		.join('');
 }
 
+function parseCollectionItems(lines: string[], startIndex: number): { items: any[]; endIndex: number } {
+	const items: any[] = [];
+	let currentItem: Record<string, any> | null = null;
+	let depth = 1;
+
+	for (let index = startIndex; index < lines.length; index++) {
+		const trimmed = lines[index].trim();
+
+		if (trimmed === '<') {
+			depth++;
+			continue;
+		}
+
+		if (trimmed === '>') {
+			depth--;
+			if (depth === 0) {
+				return { items, endIndex: index };
+			}
+			continue;
+		}
+
+		if (depth === 1 && trimmed === 'item') {
+			currentItem = {};
+			items.push(currentItem);
+			continue;
+		}
+
+		if (depth === 1 && trimmed === 'end') {
+			currentItem = null;
+			continue;
+		}
+
+		if (!currentItem) {
+			continue;
+		}
+
+		const propertyMatch = trimmed.match(/^([\w.]+)\s*=\s*(.+)$/);
+		if (propertyMatch) {
+			const propName = normalizePropertyName(propertyMatch[1]);
+			currentItem[propName] = propertyMatch[2].trim();
+		}
+	}
+
+	return { items, endIndex: lines.length - 1 };
+}
+
 function parseImageCollection(lines: string[], startIndex: number): {
 	images: any[]; endIndex: number; collectionProps?: Record<string, any>
 } {
 	const images: ImageCollectionItem[] = [];
 
-	let currentImage: ImageCollectionItem | null = null;
-	let inSourceImages = false;
-	let collectionDepth = 1;
-	const collectionProps: Record<string, any> = {};
-
 	let index = startIndex;
+	let collectionDepth = 0;
+	let inSourceImages = false;
+	let currentImage;
+	let collectionProps: Record<string, any> = {};
 
 	for (; index < lines.length; index++) {
 		const trimmed = lines[index].trim();
@@ -321,6 +366,17 @@ export function parseDfm(text: string): DfmComponent[] {
 
 			if (
 				stack.length > 0 &&
+				['ColumnCollection', 'RowCollection', 'ControlCollection'].includes(propertyName) &&
+				rawValue.startsWith('<')
+			) {
+				const result = parseCollectionItems(lines, index + 1);
+				stack[stack.length - 1].properties[propertyName] = result.items;
+				index = result.endIndex;
+				continue;
+			}
+
+			if (
+				stack.length > 0 &&
 				stack[stack.length - 1].className === 'TImageCollection' &&
 				propertyName === 'Images' &&
 				rawValue.startsWith('<')
@@ -372,25 +428,25 @@ export function parseDfm(text: string): DfmComponent[] {
 	const decls: Array<{name:string, index:number}> = [];
 	for (let i = 0; i < lines.length; i++) {
 		const m = lines[i].match(/^\s*object\s+(\w+)\s*:\s*(\w+)/);
-		if (m) decls.push({ name: m[1], index: i });
+		if (m) { decls.push({ name: m[1], index: i }); }
 	}
 
 	// Find all Left/Top occurrences and assign to the nearest preceding declaration
 	for (let i = 0; i < lines.length; i++) {
 		const l = lines[i].match(/^\s*Left\s*=\s*(\d+)$/i);
 		const t = lines[i].match(/^\s*Top\s*=\s*(\d+)$/i);
-		if (!l && !t) continue;
+		if (!l && !t) { continue; }
 		// find decl with highest index <= i
 		let best: {name:string,index:number} | null = null;
 		for (const d of decls) {
-			if (d.index <= i && (!best || d.index > best.index)) best = d;
+			if (d.index <= i && (!best || d.index > best.index)) { best = d; }
 		}
-		if (!best) continue;
+		if (!best) { continue; }
 		// find component in roots
 		const comp = findComponentByName(roots, best.name);
-		if (!comp) continue;
-		if (l && !comp.properties.Left) comp.properties.Left = l[1];
-		if (t && !comp.properties.Top) comp.properties.Top = t[1];
+		if (!comp) { continue; }
+		if (l && !comp.properties.Left) { comp.properties.Left = l[1]; }
+		if (t && !comp.properties.Top) { comp.properties.Top = t[1]; }
 	}
 
 	return roots;

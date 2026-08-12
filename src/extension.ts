@@ -140,8 +140,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	vscode.window.showInformationMessage('Open a DFM file then press Ctrl+Shift+P and select "Preview Delphi DFM"'); //from title in package.json
 	//Message length:                    [                                                                   ]
-	const disposable =
-		vscode.commands.registerCommand(
+	const disposable = vscode.commands.registerCommand(
 			'delphi-dfm-designer.previewDfm',
 			() => {
 				const panel =
@@ -187,7 +186,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const formHeight = Number(form.properties.ClientHeight ?? 768);
 				const html =
 					form.children
-						.map(renderComponent) //src/renderer.ts
+						.map(component => renderComponent(component)) //src/renderer.ts
 						.join('');
 			
 				panel.webview.onDidReceiveMessage(
@@ -325,8 +324,14 @@ export function activate(context: vscode.ExtensionContext) {
 							.br { bottom:0; right:0; transform:translate(50%, 50%); cursor:nwse-resize !important; z-index:1000; }
 						</style>
 					</head>
-					<body>
-						<span>${editor.document.fileName}</span>
+					<body style="
+						background: ${toHtmlColor(form.properties.Color ?? 'transparent')}; 
+						color: ${toHtmlColor(form.properties.FontColor ?? 'black')}; 
+						font-size: ${Math.abs(Number(form.properties.FontHeight ?? 11))}px; 
+						font-weight: ${form.properties.FontStyle?.includes('fsBold') ? 'bold' : 'normal'}; 
+						font-style: ${form.properties.FontStyle?.includes('fsItalic') ? 'italic' : 'normal'}; 
+						font-family: ${form.properties.FontName ?? 'Arial, sans-serif'};
+					">
 						<div 
 							id="form" 
 							style="
@@ -522,7 +527,8 @@ export function activate(context: vscode.ExtensionContext) {
 					</body>
 					</html>
 				`;
-			});
+			}
+		);
 
 	context.subscriptions.push(disposable);
 }

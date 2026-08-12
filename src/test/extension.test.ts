@@ -62,6 +62,89 @@ end
 		assert.ok(parsed[0].properties.PictureData?.includes('055449636F6E00000100010020200001'));
 	});
 
+	test('parses TGridPanel grid collections', () => {
+		const parsed = parseDfm(`
+object gpnl: TGridPanel
+  Left = 8
+  Top = 152
+  Width = 769
+  Height = 153
+  ColumnCollection = <
+    item
+      Value = 17.355371900826440000
+    end
+    item
+      Value = 82.644628099173560000
+    end
+  >
+  RowCollection = <
+    item
+      Value = 50.000000000000000000
+    end
+    item
+      Value = 50.000000000000000000
+    end
+    item
+      SizeStyle = ssAuto
+    end
+  >
+end
+		`);
+
+		assert.strictEqual(Array.isArray(parsed[0].properties.ColumnCollection), true);
+		assert.strictEqual(parsed[0].properties.ColumnCollection.length, 2);
+		assert.strictEqual(parsed[0].properties.RowCollection.length, 3);
+		assert.strictEqual(parsed[0].properties.ColumnCollection[0].Value, '17.355371900826440000');
+	});
+
+	test('renders TGridPanel as a CSS grid', () => {
+		const html = renderComponent({
+			name: 'gpnl',
+			className: 'TGridPanel',
+			properties: {
+				Left: '8',
+				Top: '152',
+				Width: '769',
+				Height: '153',
+				ColumnCollection: [
+					{ Value: '17.355371900826440000' },
+					{ Value: '82.644628099173560000' }
+				],
+				RowCollection: [
+					{ Value: '50.000000000000000000' },
+					{ Value: '50.000000000000000000' },
+					{ SizeStyle: 'ssAuto' }
+				],
+				ControlCollection: [
+					{ Column: '1', Row: '1', Control: 'lblDUO' }
+				]
+			},
+			children: [
+				{
+					name: 'lblDUO',
+					className: 'TLabel',
+					properties: { Caption: 'DUO MFA', Left: '424', Top: '68', Width: '65', Height: '20' },
+					children: [],
+					lineNumber: 0,
+					endLine: 0,
+					widthLine: -1,
+					heightLine: -1,
+					leftLine: -1,
+					topLine: -1
+				}
+			],
+			lineNumber: 0,
+			endLine: 0,
+			widthLine: -1,
+			heightLine: -1,
+			leftLine: -1,
+			topLine: -1
+		} as any);
+
+		assert.ok(html.includes('display: grid'));
+		assert.ok(html.includes('grid-template-columns: 17.35537190082644% 82.64462809917356%;'));
+	});
+
 	test('escapes html in rendered captions and names', () => {
 		const html = renderComponent({
 			name: 'Label1',
