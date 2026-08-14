@@ -1,10 +1,13 @@
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // You can import and use all API from the 'vscode' module
 // as well as import your extension to test it
 import * as vscode from 'vscode';
 import { findComponentAtLine, findComponentByName, parseDfm } from '../dfmParser';
 import { renderComponent } from '../renderer';
+import { getConstraintValue } from '../extension';
 // import * as myExtension from '../../extension';
 
 suite('Extension Test Suite', () => {
@@ -32,6 +35,28 @@ end
 		assert.strictEqual(parsed[0].properties.FontStyle, '[fsBold]');
 	});
 
+	test('reads form constraint values whether they are nested or flattened', () => {
+		const flatForm = {
+			ConstraintsMinWidth: '800',
+			ConstraintsMaxWidth: '1200',
+			ConstraintsMinHeight: '600',
+			ConstraintsMaxHeight: '900'
+		};
+		const nestedForm = {
+			Constraints: {
+				MinWidth: 800,
+				MaxWidth: 1200,
+				MinHeight: 600,
+				MaxHeight: 900
+			}
+		};
+
+		assert.strictEqual(getConstraintValue(flatForm, 'MinWidth'), '800');
+		assert.strictEqual(getConstraintValue(flatForm, 'MaxWidth'), '1200');
+		assert.strictEqual(getConstraintValue(nestedForm, 'MinWidth'), 800);
+		assert.strictEqual(getConstraintValue(nestedForm, 'MaxHeight'), 900);
+	});
+
 	test('finds a component by name and by selection line', () => {
 		const parsed = parseDfm(`
 object frmCustDisp: TForm
@@ -47,6 +72,16 @@ end
 		assert.strictEqual(findComponentByName(parsed, 'btnOk')?.name, 'btnOk');
 		assert.strictEqual(findComponentAtLine(parsed, 3)?.name, 'btnOk');
 		assert.strictEqual(findComponentAtLine(parsed, 6)?.name, 'lblTitle');
+	});
+
+	test('keeps the root form range intact when complex DFM blocks are present', () => {
+		const dfmText = fs.readFileSync(path.join(__dirname, '..', '..', 'example', 'CustDisp.dfm'), 'utf8');
+		const parsed = parseDfm(dfmText);
+
+		assert.ok(parsed.length > 0);
+		assert.ok(parsed[0].endLine > parsed[0].lineNumber);
+		assert.strictEqual(findComponentAtLine(parsed, 14809)?.name, 'Panel1');
+		assert.strictEqual(findComponentAtLine(parsed, 15199)?.name, 'pnlWeight');
 	});
 
 	test('parses multiline brace blocks for picture data', () => {

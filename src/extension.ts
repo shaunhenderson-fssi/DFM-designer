@@ -45,6 +45,29 @@ function toHtmlColor(value: unknown): string {
 	return raw;
 }
 
+export function getConstraintValue(properties: Record<string, any> | undefined, name: 'MinWidth' | 'MaxWidth' | 'MinHeight' | 'MaxHeight'): unknown {
+	if (!properties) {
+		return 0;
+	}
+
+	const nested = properties.Constraints;
+	if (nested && typeof nested === 'object' && Object.prototype.hasOwnProperty.call(nested, name)) {
+		return nested[name];
+	}
+
+	const flatName = `Constraints${name}`;
+	if (Object.prototype.hasOwnProperty.call(properties, flatName)) {
+		return properties[flatName];
+	}
+
+	const lowerFlatName = flatName.charAt(0).toLowerCase() + flatName.slice(1);
+	if (Object.prototype.hasOwnProperty.call(properties, lowerFlatName)) {
+		return properties[lowerFlatName];
+	}
+
+	return 0;
+}
+
 /**
  * Updates the Width and Height properties of a specified component in the DFM text.
  * @param dfmText The original DFM text as a string.
@@ -287,7 +310,7 @@ export function activate(context: vscode.ExtensionContext) {
 					<!DOCTYPE html>
 					<html>
 					<head>
-						<title>${editor.document.fileName}</title>
+						<title>DFM Preview</title>
 						<style>
 							.cursordefault { 
 								cursor:default; 
@@ -314,7 +337,7 @@ export function activate(context: vscode.ExtensionContext) {
 								z-index: 1000;
 							}
 
-							.show-corners .corner {
+							.show-corners > .corner {
 								display: block;
 							}
 
@@ -325,24 +348,27 @@ export function activate(context: vscode.ExtensionContext) {
 						</style>
 					</head>
 					<body style="
-						background: ${toHtmlColor(form.properties.Color ?? 'transparent')}; 
-						color: ${toHtmlColor(form.properties.FontColor ?? 'black')}; 
-						font-size: ${Math.abs(Number(form.properties.FontHeight ?? 11))}px; 
-						font-weight: ${form.properties.FontStyle?.includes('fsBold') ? 'bold' : 'normal'}; 
-						font-style: ${form.properties.FontStyle?.includes('fsItalic') ? 'italic' : 'normal'}; 
-						font-family: ${form.properties.FontName ?? 'Arial, sans-serif'};
+						background: silver; 
+						color: black; 
 					">
 						<div 
 							id="form" 
 							style="
 								position: absolute;
-								left: 0px;
-								top: 20px;
-								width: ${formWidth}px;
-								height: ${formHeight}px;
-								background: ${toHtmlColor(form.properties.Color ?? 'transparent')};
+								left: ${form.properties.Left ?? 0}px;
+								top: ${form.properties.Top ?? 0}px;
+								
+								min-width: ${getConstraintValue(form.properties, 'MinWidth') ?? form.properties.ClientWidth ?? formWidth}px;
+								width: ${form.properties.ClientWidth ?? formWidth}px;
+								max-width: ${getConstraintValue(form.properties, 'MaxWidth') ?? form.properties.ClientWidth ?? formWidth}px;
+
+								min-height: ${getConstraintValue(form.properties, 'MinHeight') ?? form.properties.ClientHeight ?? formHeight}px;
+								height: ${form.properties.ClientHeight ?? formHeight}px;
+								max-height: ${getConstraintValue(form.properties, 'MaxHeight') ?? form.properties.ClientHeight ?? formHeight}px;
+
+								background: ${toHtmlColor(form.properties.Color ?? 'white')};
 								color: ${toHtmlColor(form.properties.FontColor ?? 'black')};
-								font-size: ${Math.abs(Number(form.properties.FontHeight ?? 11))}px;
+								font-size: ${Math.abs(Number(form.properties.FontHeight ?? form.properties.TextHeight ?? 11))}px;
 								font-weight: ${form.properties.FontStyle?.includes('fsBold') ? 'bold' : 'normal'};
 								font-style: ${form.properties.FontStyle?.includes('fsItalic') ? 'italic' : 'normal'};
 								font-family: ${form.properties.FontName ?? 'Arial, sans-serif'};
@@ -386,7 +412,9 @@ export function activate(context: vscode.ExtensionContext) {
 							}
 
 							window.addEventListener('message', event => {
+								//user has selected text in the DFm file, update the web component
 								const message = event.data;
+								console.log('WebView received message:', JSON.stringify(message));
 
 								if (message.command !== 'lineChanged') {
 									return;

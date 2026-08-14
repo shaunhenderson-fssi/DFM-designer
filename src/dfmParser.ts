@@ -84,14 +84,22 @@ function parseCollectionItems(lines: string[], startIndex: number): { items: any
 			continue;
 		}
 
-		if (depth === 1 && trimmed === 'item') {
-			currentItem = {};
-			items.push(currentItem);
+		if (trimmed === 'end>') {
+			if (depth === 1) {
+				return { items, endIndex: index };
+			}
+			currentItem = null;
 			continue;
 		}
 
-		if (depth === 1 && trimmed === 'end') {
+		if (trimmed === 'end') {
 			currentItem = null;
+			continue;
+		}
+
+		if (depth === 1 && trimmed === 'item') {
+			currentItem = {};
+			items.push(currentItem);
 			continue;
 		}
 
@@ -107,6 +115,32 @@ function parseCollectionItems(lines: string[], startIndex: number): { items: any
 	}
 
 	return { items, endIndex: lines.length - 1 };
+}
+
+function skipCollectionBlock(lines: string[], startIndex: number): number {
+	let depth = 1;
+	for (let index = startIndex; index < lines.length; index++) {
+		const trimmed = lines[index].trim();
+		if (trimmed === '<') {
+			depth++;
+			continue;
+		}
+		if (trimmed === '>') {
+			depth--;
+			if (depth <= 0) {
+				return index;
+			}
+			continue;
+		}
+		if (trimmed === 'end>') {
+			depth--;
+			if (depth <= 0) {
+				return index;
+			}
+		}
+	}
+
+	return lines.length - 1;
 }
 
 function parseImageCollection(lines: string[], startIndex: number): {
@@ -134,6 +168,19 @@ function parseImageCollection(lines: string[], startIndex: number): {
 			if (collectionDepth === 0) {
 				break;
 			}
+			continue;
+		}
+
+		if (trimmed === 'end>') {
+			if (collectionDepth <= 1) {
+				break;
+			}
+			currentImage = null;
+			continue;
+		}
+
+		if (trimmed === 'end') {
+			currentImage = null;
 			continue;
 		}
 
@@ -383,7 +430,6 @@ export function parseDfm(text: string): DfmComponent[] {
 			) {
 				const result = parseImageCollection(lines, index + 1);
 				stack[stack.length - 1].properties.Images = JSON.stringify(result.images);
-				// If parseImageCollection captured collection-level props (Left/Top), apply them
 				if (result.collectionProps) {
 					if (result.collectionProps.Left !== undefined && !stack[stack.length - 1].properties.Left) {
 						stack[stack.length - 1].properties.Left = String(result.collectionProps.Left);
@@ -392,29 +438,34 @@ export function parseDfm(text: string): DfmComponent[] {
 						stack[stack.length - 1].properties.Top = String(result.collectionProps.Top);
 					}
 				}
-					// Also look ahead a few lines after the Images block to catch
-					// Left/Top lines that appear immediately after the block in some DFM files.
-					let peek = result.endIndex + 1;
-					for (; peek < lines.length; peek++) {
-						const t = lines[peek].trim();
-						// stop if we hit the end of the object or a nested object
-						if (t === 'end' || /^object\s+\w+\s*:\s*\w+/i.test(t)) {
-							break;
-						}
-						const lmatch = t.match(/^Left\s*=\s*(\d+)$/i);
-						if (lmatch && !stack[stack.length - 1].properties.Left) {
-							stack[stack.length - 1].properties.Left = lmatch[1];
-							continue;
-						}
-						const tmatch = t.match(/^Top\s*=\s*(\d+)$/i);
-						if (tmatch && !stack[stack.length - 1].properties.Top) {
-							stack[stack.length - 1].properties.Top = tmatch[1];
-							continue;
-						}
-						// if other property encountered, skip
+				let peek = result.endIndex + 1;
+				for (; peek < lines.length; peek++) {
+					const t = lines[peek].trim();
+					if (t === 'end' || /^object\s+\w+\s*:\s*\w+/i.test(t)) {
+						break;
 					}
-					// set index to the line before peek so the main loop continues at peek
-					index = Math.max(result.endIndex, peek - 1);
+					const lmatch = t.match(/^Left\s*=\s*(\d+)$/i);
+					if (lmatch && !stack[stack.length - 1].properties.Left) {
+						stack[stack.length - 1].properties.Left = lmatch[1];
+						continue;
+					}
+					const tmatch = t.match(/^Top\s*=\s*(\d+)$/i);
+					if (tmatch && !stack[stack.length - 1].properties.Top) {
+						stack[stack.length - 1].properties.Top = tmatch[1];
+						continue;
+					}
+				}
+				index = Math.max(result.endIndex, peek - 1);
+				continue;
+			}
+
+			if (
+				stack.length > 0 &&
+				rawValue.startsWith('<')
+			) {
+				const endIndex = skipCollectionBlock(lines, index + 1);
+				index = endIndex;
+				stack[stack.length - 1].properties[propertyName] = rawValue;
 				continue;
 			}
 
