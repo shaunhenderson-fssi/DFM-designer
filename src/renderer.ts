@@ -195,6 +195,14 @@ function commonPosition(component: DfmComponent): string {
 	return `position:absolute; left:${left}; top:${top}; width:${width}; height:${height};`;
 }
 
+/**
+ * This is for TGridPanel, which has a ColumnCollection and RowCollection. Each collection contains items with Value and SizeStyle properties.
+ * The function parses these collections and returns an array of strings representing the CSS grid track sizes. 
+ * If usePercent is true, it will convert numeric values to percentages if they sum to 100, otherwise it will use 'fr' units.
+ * @param collection The collection of grid track items to parse, which may be an array of objects with Value and SizeStyle properties.
+ * @param usePercent A flag indicating whether to use percentages for numeric values.
+ * @returns An array of strings representing the CSS grid track sizes.
+ */
 function parseGridTracks(collection: unknown, usePercent = false): string[] {
 	if (!Array.isArray(collection)) {
 		return [];

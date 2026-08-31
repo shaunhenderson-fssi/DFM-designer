@@ -80,7 +80,7 @@ end
 
 		assert.ok(parsed.length > 0);
 		assert.ok(parsed[0].endLine > parsed[0].lineNumber);
-		assert.strictEqual(findComponentAtLine(parsed, 14809)?.name, 'Panel1');
+		assert.strictEqual(findComponentAtLine(parsed, 14809)?.name, 'imgFlashCard');
 		assert.strictEqual(findComponentAtLine(parsed, 15199)?.name, 'pnlWeight');
 	});
 
