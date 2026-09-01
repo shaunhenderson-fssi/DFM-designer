@@ -218,6 +218,23 @@ end
 		assert.strictEqual(parsed[0].children[1].name, 'lblHeading2');
 	});
 
+	test('renders Delphi-wrapped TPngImage picture data as a PNG data URL', () => {
+		const html = renderComponent({
+			name: 'imgAccess',
+			className: 'TImage',
+			properties: {
+				PictureData: '0954506E67496D61676589504E470D0A1A0A0000000D4948445200000040000000400806000000AA6971DE',
+				Left: '34',
+				Top: '4',
+				Width: '66',
+				Height: '70'
+			},
+			children: []
+		} as any);
+
+		assert.ok(html.includes('data:image/png;base64,'));
+	});
+
 	test('renders icon-style picture data as an ICO data URL', () => {
 		const html = renderComponent({
 			name: 'imgCustomer',

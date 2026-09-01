@@ -30,7 +30,8 @@ const delphiColorMap: Record<string, string> = {
 
 /**
  * Converts a Delphi color name or hex value to a valid HTML color string. If the input is empty or unrecognized, it returns 'transparent'.
- * @param value The Delphi color name or hex value to convert.
+ * Supports Delphi color names, hex strings, and decimal color values.
+ * @param value The Delphi color name, hex value, or decimal color value to convert.
  * @returns The corresponding HTML color string.
  */
 function toHtmlColor(value: unknown): string {
@@ -42,6 +43,19 @@ function toHtmlColor(value: unknown): string {
 	const normalized = raw.toLowerCase();
 	if (normalized in delphiColorMap) {
 		return delphiColorMap[normalized];
+	}
+
+	// Check if it's a decimal number (Delphi color format)
+	const decimal = parseInt(raw, 10);
+	if (!isNaN(decimal) && decimal >= 0) {
+		// Delphi stores colors as 0xBBGGRR (BGR format)
+		// Convert to hex and pad with zeros
+		const hex = decimal.toString(16).padStart(6, '0');
+		// Reverse the byte order from BGR to RGB
+		const r = hex.substring(4, 6);
+		const g = hex.substring(2, 4);
+		const b = hex.substring(0, 2);
+		return `#${r}${g}${b}`;
 	}
 
 	return raw;
@@ -74,31 +88,86 @@ function getText(value: unknown): string {
 }
 
 /**
- * Adjusts the given byte buffer by removing the Delphi image wrapper if present. 
- * This is necessary for certain Delphi image types that include additional metadata.
+ * Finds the first offset in the buffer where a known image signature begins.
+ * Delphi stores a class name prefix and may insert extra metadata before the
+ * actual image payload, so we scan the whole buffer instead of assuming a fixed layout.
+ * @param buf The buffer to inspect.
+ * @returns The offset of the first valid image signature, or -1 if none are found.
+ */
+function findImageSignatureOffset(buf: Buffer): number {
+	const signatures = [
+		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+		Buffer.from([0xff, 0xd8]),
+		Buffer.from([0x42, 0x4d]),
+		Buffer.from([0x00, 0x00, 0x01, 0x00]),
+		Buffer.from([0x47, 0x49, 0x46]),
+	];
+
+	for (let offset = 0; offset <= buf.length - 2; offset++) {
+		for (const sig of signatures) {
+			if (buf.length - offset >= sig.length && buf.subarray(offset, offset + sig.length).equals(sig)) {
+				return offset;
+			}
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * Removes the Delphi image wrapper and returns the actual image payload.
+ * The real payload layout differs by image class:
+ * - TPngImage starts immediately after the class name
+ * - TJPEGImage and some bitmap payloads insert 4 bytes before the actual image stream
+ * - TIcon has no extra metadata bytes
  * @param bytes The byte buffer representing the image data.
- * @returns A new byte buffer with the Delphi image wrapper removed, if applicable.
+ * @returns The extracted image payload or the original buffer if no wrapper is present.
  */
 function stripDelphiImageWrapper(bytes: Buffer): Buffer {
-    if (bytes.length < 8) {
-        return bytes;
-    }
+	if (bytes.length < 8) {
+		return bytes;
+	}
 
-    const firstByte = bytes[0];
-    const className = bytes.subarray(1, 1 + firstByte).toString('ascii');
+	const firstByte = bytes[0];
+	if (firstByte <= 0) {
+		return bytes;
+	}
 
-    if (/^T\w+Image$|^TIcon$|^TBitmap$|^TMetafile$/.test(className)) {
+	const className = bytes.subarray(1, 1 + firstByte).toString('ascii');
+	const afterClassName = bytes.subarray(1 + firstByte);
 
-        if (className === 'TIcon') {
-            // ICONS DO NOT HAVE THE EXTRA 4 BYTES
-            return bytes.subarray(1 + firstByte);
-        }
+	if (className === 'TIcon') {
+		const iconOffset = findImageSignatureOffset(afterClassName);
+		return iconOffset >= 0 ? afterClassName.subarray(iconOffset) : afterClassName;
+	}
 
-        // Other image types DO have the extra 4 bytes
-        return bytes.subarray(1 + firstByte + 4);
-    }
+	if (className === 'TPngImage') {
+		const pngOffset = findImageSignatureOffset(afterClassName);
+		return pngOffset >= 0 ? afterClassName.subarray(pngOffset) : afterClassName;
+	}
 
-    return bytes;
+	if (className === 'TJPEGImage' || className === 'TBitmap' || className === 'TMetafile') {
+		if (afterClassName.length >= 4) {
+			const candidate = afterClassName.subarray(4);
+			const candidateOffset = findImageSignatureOffset(candidate);
+			if (detectMime(candidateOffset >= 0 ? candidate.subarray(candidateOffset) : candidate) !== 'application/octet-stream') {
+				return candidateOffset >= 0 ? candidate.subarray(candidateOffset) : candidate;
+			}
+		}
+
+		const offset = findImageSignatureOffset(afterClassName);
+		if (detectMime(offset >= 0 ? afterClassName.subarray(offset) : afterClassName) !== 'application/octet-stream') {
+			return offset >= 0 ? afterClassName.subarray(offset) : afterClassName;
+		}
+	}
+
+	const imageOffset = findImageSignatureOffset(bytes);
+	if (imageOffset >= 0) {
+		return bytes.subarray(imageOffset);
+	}
+
+	const offset = findImageSignatureOffset(afterClassName);
+	return offset >= 0 ? afterClassName.subarray(offset) : afterClassName;
 }
 
 /**
@@ -125,6 +194,10 @@ function detectMime(bytes: Buffer, className?: string): string {
 		return 'image/bmp';
 	}
 
+	if (bytes.length >= 3 && bytes.subarray(0, 3).equals(Buffer.from([0x47, 0x49, 0x46]))) {
+		return 'image/gif';
+	}
+
 	if (className === 'TJPEGImage') {
 		return 'image/jpeg';
 	}
@@ -133,6 +206,9 @@ function detectMime(bytes: Buffer, className?: string): string {
 	}
 	if (className === 'TIcon') {
 		return 'image/x-icon';
+	}
+	if (className === 'TPngImage') {
+		return 'image/png';
 	}
 
 	return 'application/octet-stream';
@@ -162,6 +238,13 @@ function toImageSource(value: unknown): string {
 	const allBytes = Buffer.from(compact, 'hex');
 	const imageBytes = stripDelphiImageWrapper(allBytes);
 	const mime = detectMime(imageBytes);
+	if (mime === 'application/octet-stream' || imageBytes.length === 0) {
+		return '';
+	}
+
+	if (imageBytes.length < 8) {
+		return '';
+	}
 
 	return `data:${mime};base64,${imageBytes.toString('base64')}`;
 }
@@ -422,9 +505,14 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 					>
 				</div>`;
 
-		case 'TMemo':
+		case 'TMemo': {
+			// TMemo stores text in Lines.Strings property
+			const memoText = escapeHtml(component.properties.LinesStrings ?? component.properties.Caption ?? component.properties.Text ?? '');
+			const memoColor = toHtmlColor(component.properties.Color ?? 'transparent');
+			const textColor = toHtmlColor(component.properties.FontColor ?? component.properties.FontColorClr ?? 'black');
+			
 			return `
-				<div style="${position}; ${font};">
+				<div style="${position} ${font} background: ${memoColor}; color: ${textColor}; overflow: hidden;">
 					${renderWithCorners('')}
 					<textarea
 						id="${component.name}"
@@ -438,9 +526,17 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 							height: 100%;
 							border: none;
 							background: transparent;
+							color: ${textColor};
+							resize: none;
+							padding: 4px;
+							box-sizing: border-box;
+							font-family: inherit;
+							font-size: inherit;
+							line-height: 1.4;
 						"
-					>${caption}</textarea>
+					>${memoText}</textarea>
 				</div>`;
+			}
 		
 		case 'TToolBar':
 		case 'TStatusBar':
