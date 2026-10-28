@@ -83,6 +83,23 @@ export function toHtmlColor(value: unknown): string {
 	return raw;
 }
 
+function escapeHtml(value: unknown): string {
+	return String(value ?? '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
+
+function getFormTitle(properties: Record<string, any>): string {
+	const raw = String(properties.Caption ?? '').trim();
+	if (raw.length >= 2 && raw.startsWith("'") && raw.endsWith("'")) {
+		return raw.slice(1, -1).replace(/''/g, "'");
+	}
+	return raw;
+}
+
 export function getConstraintValue(properties: Record<string, any> | undefined, name: 'MinWidth' | 'MaxWidth' | 'MinHeight' | 'MaxHeight'): unknown {
 	if (!properties) {
 		return 0;
@@ -346,6 +363,30 @@ export function activate(context: vscode.ExtensionContext) {
 				});
 				context.subscriptions.push(selectionChanged);
 
+				const borderStyle = String(form.properties.BorderStyle ?? 'bsSizeable').trim();
+				const showTitleBar = borderStyle !== 'bsNone';
+				const titleBarHeight = borderStyle === 'bsToolWindow' || borderStyle === 'bsSizeToolWin' ? 22 : 24;
+				const formBorder = borderStyle === 'bsNone' ? 'none'
+					: borderStyle === 'bsDialog' || borderStyle === 'bsToolWindow' || borderStyle === 'bsSizeToolWin'
+						? '2px solid #808080' : '1px solid #808080';
+				const formTitle = escapeHtml(getFormTitle(form.properties));
+				const titleBarHtml = showTitleBar ? `
+					<div class="form-title-bar" style="
+						height: ${titleBarHeight}px;
+						line-height: ${titleBarHeight}px;
+						box-sizing: border-box;
+						padding: 0 6px;
+						overflow: hidden;
+						white-space: nowrap;
+						text-overflow: ellipsis;
+						background: linear-gradient(to right, #000080, #1084d0);
+						color: #ffffff;
+						font-family: 'Segoe UI', sans-serif;
+						font-size: 12px;
+						font-weight: bold;
+						user-select: none;
+					">${formTitle}</div>` : '';
+
 				const webviewHtml = `
 					<!DOCTYPE html>
 					<html>
@@ -398,32 +439,42 @@ export function activate(context: vscode.ExtensionContext) {
 						background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 						color: black;
 					">
-						<div 
-							id="form" 
+						<div
+							id="form-frame"
 							style="
 								position: absolute;
-								left: 0px;
-								top: 0px;
-								
-								min-width: ${getConstraintValue(form.properties, 'MinWidth') ?? form.properties.ClientWidth ?? formWidth}px;
-								width: ${form.properties.ClientWidth ?? formWidth}px;
-								max-width: ${getConstraintValue(form.properties, 'MaxWidth') ?? form.properties.ClientWidth ?? formWidth}px;
-
-								min-height: ${getConstraintValue(form.properties, 'MinHeight') ?? form.properties.ClientHeight ?? formHeight}px;
-								height: ${form.properties.ClientHeight ?? formHeight}px;
-								max-height: ${getConstraintValue(form.properties, 'MaxHeight') ?? form.properties.ClientHeight ?? formHeight}px;
-
-								background-color: ${toHtmlColor(form.properties.Color ?? 'silver')} !important;
-								background-image: none !important;
-								background-repeat: no-repeat !important;
-								color: ${toHtmlColor(form.properties.FontColor ?? 'black')} !important;
-								font-size: ${Math.abs(Number(form.properties.FontHeight ?? form.properties.TextHeight ?? 11))}px;
-								font-weight: ${form.properties.FontStyle?.includes('fsBold') ? 'bold' : 'normal'};
-								font-style: ${form.properties.FontStyle?.includes('fsItalic') ? 'italic' : 'normal'};
-								font-family: ${form.properties.FontName ?? 'Arial, sans-serif'};
+								left: ${form.properties.Left ?? 0}px;
+								top: ${form.properties.Top ?? 0}px;
+								border: ${formBorder};
+								box-sizing: border-box;
 							"
 						>
-							${html}
+							${titleBarHtml}
+							<div
+								id="form"
+								style="
+									position: relative;
+
+									min-width: ${getConstraintValue(form.properties, 'MinWidth') ?? form.properties.ClientWidth ?? formWidth}px;
+									width: ${form.properties.ClientWidth ?? formWidth}px;
+									max-width: ${getConstraintValue(form.properties, 'MaxWidth') ?? form.properties.ClientWidth ?? formWidth}px;
+
+									min-height: ${getConstraintValue(form.properties, 'MinHeight') ?? form.properties.ClientHeight ?? formHeight}px;
+									height: ${form.properties.ClientHeight ?? formHeight}px;
+									max-height: ${getConstraintValue(form.properties, 'MaxHeight') ?? form.properties.ClientHeight ?? formHeight}px;
+
+									background-color: ${toHtmlColor(form.properties.Color ?? 'silver')} !important;
+									background-image: none !important;
+									background-repeat: no-repeat !important;
+									color: ${toHtmlColor(form.properties.FontColor ?? 'black')} !important;
+									font-size: ${Math.abs(Number(form.properties.FontHeight ?? form.properties.TextHeight ?? 11))}px;
+									font-weight: ${form.properties.FontStyle?.includes('fsBold') ? 'bold' : 'normal'};
+									font-style: ${form.properties.FontStyle?.includes('fsItalic') ? 'italic' : 'normal'};
+									font-family: ${form.properties.FontName ?? 'Arial, sans-serif'};
+								"
+							>
+								${html}
+							</div>
 						</div>
 
 						<script>

@@ -521,27 +521,47 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 				</div>`;
 		}
 		case 'TEdit':
-		case 'TAKPEdit':
+		case 'TAKPEdit': {
+			const editColor = toHtmlColor(component.properties.Color ?? 'clWindow');
+			const editTextColor = toHtmlColor(component.properties.FontColor ?? 'clWindowText');
+			const maxLength = component.properties.MaxLength ? `maxlength="${escapeHtml(component.properties.MaxLength)}"` : '';
+
 			return `
-				<div style="${position}; ${font};">
+				<div
+					id="${component.name}"
+					data-line="${component.lineNumber}"
+					data-name="${component.name}"
+					title="${escapeHtml(component.name)}"
+					class="cursordefault control"
+					style="
+						${position}
+						${font}
+						background: ${editColor};
+						color: ${editTextColor};
+						border: 1px solid #7a7a7a;
+						box-sizing: border-box;
+					"
+				>
 					${renderWithCorners('')}
 					<input
-						id="${component.name}"
-						data-line="${component.lineNumber}"
-						data-name="${component.name}"
-						title="${escapeHtml(component.name)}"
 						type="text"
 						readonly
 						value="${caption}"
-						class="cursordefault control"
+						${maxLength}
 						style="
 							width: 100%;
 							height: 100%;
 							border: none;
+							outline: none;
+							box-sizing: border-box;
+							padding: 1px 2px;
 							background: transparent;
+							color: inherit;
+							font: inherit;
 						"
 					>
 				</div>`;
+		}
 
 		case 'TMemo': {
 			// TMemo stores text in Lines.Strings property

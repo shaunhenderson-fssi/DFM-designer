@@ -146,6 +146,24 @@ end
 		assert.strictEqual(parsed[0].properties.ColumnCollection[0].Value, '17.355371900826440000');
 	});
 
+	test('renders TEdit controls with a visible edit surface', () => {
+		const html = renderComponent({
+			name: 'edtCardNum1',
+			className: 'TEdit',
+			properties: {
+				Left: '286', Top: '15', Width: '156', Height: '28',
+				MaxLength: '14', FontHeight: '-16', FontStyle: '[fsBold]', FontName: 'MS Sans Serif'
+			},
+			children: [],
+			lineNumber: 3835,
+			endLine: 3848
+		} as any);
+
+		assert.ok(html.includes('id="edtCardNum1"'));
+		assert.ok(html.includes('background: #ffffff;'));
+		assert.ok(html.includes('maxlength="14"'));
+	});
+
 	test('renders a TPanel with the Delphi button-face default', () => {
 		const html = renderComponent({
 			name: 'Panel1',
