@@ -481,6 +481,30 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 					${renderWithCorners(children)}
 				</div>`;
 		}
+		case 'TGroupBox':
+		case 'TCustomGroupBox': {
+			const groupCaption = caption ? `<div style="position: absolute; left: 7px; top: -8px; padding: 0 3px; background: ${toHtmlColor(component.properties.Color ?? 'clBtnFace')};">${caption}</div>` : '';
+			return `
+				<div
+					id="${component.name}"
+					data-line="${component.lineNumber}"
+					data-name="${component.name}"
+					title="${escapeHtml(component.name)}"
+					class="cursordefault control"
+					style="
+						${position}
+						${font}
+						background: ${toHtmlColor(component.properties.Color ?? 'clBtnFace')};
+						color: ${toHtmlColor(component.properties.FontColor ?? 'black')};
+						border: 1px solid #808080;
+						box-sizing: border-box;
+						overflow: hidden;
+					"
+				>
+					${groupCaption}
+					${renderWithCorners(children)}
+				</div>`;
+		}
 		case 'TGridPanel': {
 			const columnTracks = parseGridTracks(component.properties.ColumnCollection, true);
 			const rowTracks = parseGridTracks(component.properties.RowCollection, true);
@@ -563,11 +587,12 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 				</div>`;
 		}
 
-		case 'TMemo': {
-			// TMemo stores text in Lines.Strings property
-			const memoText = escapeHtml(component.properties.LinesStrings ?? component.properties.Caption ?? component.properties.Text ?? '');
-			const memoColor = toHtmlColor(component.properties.Color ?? 'transparent');
-			const textColor = toHtmlColor(component.properties.FontColor ?? component.properties.FontColorClr ?? 'black');
+		case 'TMemo':
+		case 'TRichEdit': {
+			// Memo-style controls store text in Lines.Strings property
+			const memoText = escapeHtml(component.properties.LinesStrings ?? component.properties.Caption ?? component.properties.Text ?? 'black');
+			const memoColor = toHtmlColor(component.properties.Color ?? 'clWindow');
+			const textColor = toHtmlColor(component.properties.FontColor ?? component.properties.FontColorClr ?? 'clWindowText');
 			
 			return `
 				<div style="${position} ${font} background: ${memoColor}; color: ${textColor}; overflow: hidden;">
@@ -583,7 +608,7 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 							width: 100%;
 							height: 100%;
 							border: none;
-							background: transparent;
+							background: ${memoColor};
 							color: ${textColor};
 							resize: none;
 							padding: 4px;
@@ -796,18 +821,29 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 		}
 		case 'TCheckBox':
 			return `
-				${renderWithCorners('')}
-				<input
+				<div
 					id="${component.name}"
 					data-line="${component.lineNumber}"
 					data-name="${component.name}"
-					type="checkbox"
-					title="${escapeHtml(component.name)}" 
+					title="${escapeHtml(component.name)}"
 					class="cursordefault control"
-					style="${position}" 
-					disabled
-					${component.properties.Checked === 'True' ? 'checked' : ''}
-				>${caption}
+					style="
+						${position}
+						${font}
+						display: flex;
+						align-items: center;
+						white-space: nowrap;
+					"
+				>
+					${renderCorners()}
+					<input
+						type="checkbox"
+						aria-label="${escapeHtml(caption)}"
+						disabled
+						${component.properties.Checked === 'True' ? 'checked' : ''}
+					>
+					<span>${caption}</span>
+				</div>
 			`;
 
 		case 'TTrackBar':
@@ -841,5 +877,6 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 			"
 		>
 			${renderWithCorners(component.name)}
+			${children}
 		</div>`;
 }

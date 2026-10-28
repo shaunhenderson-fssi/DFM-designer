@@ -146,6 +146,27 @@ end
 		assert.strictEqual(parsed[0].properties.ColumnCollection[0].Value, '17.355371900826440000');
 	});
 
+	test('parses and renders TRichEdit as a textarea', () => {
+		const parsed = parseDfm(`
+object mmoScript: TRichEdit
+  Left = 66
+  Top = 17
+  Width = 698
+  Height = 446
+  Lines.Strings = (
+    '# Use Help > Reference to see a list of commands'
+    'Second line')
+end
+		`);
+
+		assert.strictEqual(parsed[0].properties.LinesStrings, '# Use Help > Reference to see a list of commands\nSecond line');
+		const html = renderComponent(parsed[0]);
+		assert.ok(html.includes('<textarea'));
+		assert.ok(html.includes('id="mmoScript"'));
+		assert.ok(html.includes('# Use Help &gt; Reference to see a list of commands\nSecond line'));
+		assert.ok(html.includes('background: #ffffff;'));
+	});
+
 	test('renders TEdit controls with a visible edit surface', () => {
 		const html = renderComponent({
 			name: 'edtCardNum1',
@@ -223,6 +244,26 @@ end
 		assert.ok(html.includes('grid-template-columns: 17.35537190082644% 82.64462809917356%;'));
 	});
 
+	test('renders TCheckBox caption as a span beside a checkbox input', () => {
+		const html = renderComponent({
+			name: 'chkHoverText',
+			className: 'TCheckBox',
+			properties: {
+				Caption: 'Inspector & details',
+				Left: '500',
+				Top: '8',
+				Width: '100',
+				Height: '17'
+			},
+			children: []
+		} as any);
+
+		assert.ok(html.includes('<div'));
+		assert.ok(html.includes('<input'));
+		assert.ok(html.includes('type="checkbox"'));
+		assert.ok(html.includes('<span>Inspector  details</span>'));
+	});
+
 	test('escapes html in rendered captions and names', () => {
 		const html = renderComponent({
 			name: 'Label1',
@@ -259,6 +300,43 @@ end
 		assert.strictEqual(parsed[0].children.length, 2);
 		assert.strictEqual(parsed[0].children[0].name, 'imgBackGround');
 		assert.strictEqual(parsed[0].children[1].name, 'lblHeading2');
+	});
+
+	test('parses and renders nested controls inside TGroupBox containers', () => {
+		const parsed = parseDfm(`
+object Form1: TForm
+  object grpTop: TGroupBox
+    Left = 0
+    Top = 0
+    Width = 766
+    Height = 33
+    object lblDefaultWindowName: TLabel
+      Left = 3
+      Top = 9
+      Width = 116
+      Height = 15
+      Caption = 'Default window name'
+    end
+    object defaultWindowName: TEdit
+      Left = 135
+      Top = 6
+      Width = 121
+      Height = 23
+      Text = 'PointOfSale'
+    end
+  end
+end
+		`);
+
+		assert.strictEqual(parsed[0].children.length, 1);
+		assert.strictEqual(parsed[0].children[0].className, 'TGroupBox');
+		assert.strictEqual(parsed[0].children[0].children.length, 2);
+		assert.strictEqual(parsed[0].children[0].children[0].name, 'lblDefaultWindowName');
+
+		const html = renderComponent(parsed[0]);
+		assert.ok(html.includes('id="grpTop"'));
+		assert.ok(html.includes('id="lblDefaultWindowName"'));
+		assert.ok(html.includes('id="defaultWindowName"'));
 	});
 
 	test('renders Delphi-wrapped TPngImage picture data as a PNG data URL', () => {

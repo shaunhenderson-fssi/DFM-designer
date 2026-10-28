@@ -445,6 +445,7 @@ export function activate(context: vscode.ExtensionContext) {
 								position: absolute;
 								left: ${form.properties.Left ?? 0}px;
 								top: ${form.properties.Top ?? 0}px;
+								width: ${form.properties.ClientWidth ?? formWidth}px;
 								border: ${formBorder};
 								box-sizing: border-box;
 							"

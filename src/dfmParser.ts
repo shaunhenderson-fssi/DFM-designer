@@ -398,16 +398,33 @@ export function parseDfm(text: string): DfmComponent[] {
 				for (index += 1; index < lines.length; index++) {
 					const blockLine = lines[index];
 					const trimmedLine = blockLine.trim();
-					if (trimmedLine === ')') {
-						break;
-					}
 					if (trimmedLine === 'end' || /^object\s+\w+\s*:\s*\w+/i.test(trimmedLine)) {
 						index -= 1;
 						break;
 					}
+
+					if (trimmedLine === ')') {
+						break;
+					}
+
+					if (trimmedLine.endsWith(')')) {
+						blockLines.push(trimmedLine.slice(0, -1).trim());
+						break;
+					}
+
 					blockLines.push(trimmedLine);
 				}
-				stack[stack.length - 1].properties[propertyName] = blockLines.join(' ').trim();
+
+				if (propertyName === 'LinesStrings') {
+					stack[stack.length - 1].properties[propertyName] = blockLines
+						.filter(line => line.length > 0)
+						.map(line => line.startsWith("'") && line.endsWith("'")
+							? line.slice(1, -1).replace(/''/g, "'")
+							: line)
+						.join('\n');
+				} else {
+					stack[stack.length - 1].properties[propertyName] = blockLines.join(' ').trim();
+				}
 				continue;
 			}
 
