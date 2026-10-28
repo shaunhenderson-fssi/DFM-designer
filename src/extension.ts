@@ -7,6 +7,44 @@ const delphiColorMap: Record<string, string> = {
 	clblack: '#000000',
 	clwhite: '#ffffff',
 	clsilver: '#c0c0c0',
+	clbtnface: '#c0c0c0',
+	clactiveborder: '#c0c0c0',
+	clactivecaption: '#808080',
+	clbackground: '#000000',
+	clbtnhighlight: '#ffffff',
+	clbtnshadow: '#808080',
+	clbtntext: '#000000',
+	clcaptiontext: '#ffffff',
+	cldefault: '#000000',
+	clgradientactivecaption: '#000080',
+	clgradientinactivecaption: '#808080',
+	clgraytext: '#808080',
+	clhighlight: '#000080',
+	clhighlighttext: '#ffffff',
+	clinactiveborder: '#c0c0c0',
+	clinactivecaption: '#c0c0c0',
+	clinactivecaptiontext: '#808080',
+	clinfobk: '#ffffe1',
+	clinfotext: '#000000',
+	clmenu: '#c0c0c0',
+	clmenubar: '#f0f0f0',
+	clmenuhighlight: '#000080',
+	clmenutext: '#000000',
+	clnone: 'transparent',
+	clscrollbar: '#c0c0c0',
+	cl3ddkshadow: '#808080',
+	cl3dlight: '#c0c0c0',
+	clwindow: '#ffffff',
+	clwindowframe: '#000000',
+	clwindowtext: '#000000',
+	claliceblue: '#f0f8ff',
+	clantiquewhite: '#faebd7',
+	claquamarine: '#7fffd4',
+	clazure: '#f0ffff',
+	clbeige: '#f5f5dc',
+	clbisque: '#ffe4c4',
+	clblanchedalmond: '#ffebcd',
+	clblueviolet: '#8a2be2',
 	clgray: '#808080',
 	clred: '#ff0000',
 	cllime: '#00ff00',
@@ -31,7 +69,7 @@ const delphiColorMap: Record<string, string> = {
  * @param value The Delphi color value to convert, which may be a named color or a hex string.
  * @returns A CSS-compatible color string, or 'transparent' if the input is not recognized.
  */
-function toHtmlColor(value: unknown): string {
+export function toHtmlColor(value: unknown): string {
 	const raw = String(value ?? '').trim();
 	if (!raw) {
 		return 'transparent';
@@ -160,6 +198,8 @@ function updateControlPosition(dfmText: string, componentName: string, newLeft: 
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('DFM Designer Activated');
+	const htmlOutput = vscode.window.createOutputChannel('DFM Preview HTML');
+	context.subscriptions.push(htmlOutput);
 
 	vscode.window.showInformationMessage('Open a DFM file then press Ctrl+Shift+P and select "Preview Delphi DFM"'); //from title in package.json
 	//Message length:                    [                                                                   ]
@@ -306,7 +346,7 @@ export function activate(context: vscode.ExtensionContext) {
 				});
 				context.subscriptions.push(selectionChanged);
 
-				panel.webview.html = `
+				const webviewHtml = `
 					<!DOCTYPE html>
 					<html>
 					<head>
@@ -348,15 +388,22 @@ export function activate(context: vscode.ExtensionContext) {
 						</style>
 					</head>
 					<body style="
-						background: silver; 
-						color: black; 
+						background-color: #ffffff;
+						background-image:
+							linear-gradient(45deg, #cccccc 25%, transparent 25%),
+							linear-gradient(-45deg, #cccccc 25%, transparent 25%),
+							linear-gradient(45deg, transparent 75%, #cccccc 75%),
+							linear-gradient(-45deg, transparent 75%, #cccccc 75%);
+						background-size: 20px 20px;
+						background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+						color: black;
 					">
 						<div 
 							id="form" 
 							style="
 								position: absolute;
-								left: ${form.properties.Left ?? 0}px;
-								top: ${form.properties.Top ?? 0}px;
+								left: 0px;
+								top: 0px;
 								
 								min-width: ${getConstraintValue(form.properties, 'MinWidth') ?? form.properties.ClientWidth ?? formWidth}px;
 								width: ${form.properties.ClientWidth ?? formWidth}px;
@@ -366,8 +413,10 @@ export function activate(context: vscode.ExtensionContext) {
 								height: ${form.properties.ClientHeight ?? formHeight}px;
 								max-height: ${getConstraintValue(form.properties, 'MaxHeight') ?? form.properties.ClientHeight ?? formHeight}px;
 
-								background: ${toHtmlColor(form.properties.Color ?? 'white')};
-								color: ${toHtmlColor(form.properties.FontColor ?? 'black')};
+								background-color: ${toHtmlColor(form.properties.Color ?? 'silver')} !important;
+								background-image: none !important;
+								background-repeat: no-repeat !important;
+								color: ${toHtmlColor(form.properties.FontColor ?? 'black')} !important;
 								font-size: ${Math.abs(Number(form.properties.FontHeight ?? form.properties.TextHeight ?? 11))}px;
 								font-weight: ${form.properties.FontStyle?.includes('fsBold') ? 'bold' : 'normal'};
 								font-style: ${form.properties.FontStyle?.includes('fsItalic') ? 'italic' : 'normal'};
@@ -378,6 +427,12 @@ export function activate(context: vscode.ExtensionContext) {
 						</div>
 
 						<script>
+							const formElement = document.getElementById('form');
+							if (formElement) {
+								formElement.style.setProperty('background-color', '${toHtmlColor(form.properties.Color ?? 'silver')}', 'important');
+								formElement.style.setProperty('background-image', 'none', 'important');
+							}
+
 							//the console.log stuff in here will show in the new VS Code window.
 							//press Ctrl+Shift+P, then choose "Developer: Open Webview Developer Tools"
 
@@ -555,6 +610,11 @@ export function activate(context: vscode.ExtensionContext) {
 					</body>
 					</html>
 				`;
+				panel.webview.html = webviewHtml;
+				htmlOutput.clear();
+				htmlOutput.appendLine(`<!-- Generated DFM preview HTML: ${editor.document.fileName} -->`);
+				htmlOutput.append(webviewHtml);
+				htmlOutput.show(true);
 			}
 		);
 

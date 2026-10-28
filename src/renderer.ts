@@ -9,6 +9,44 @@ const delphiColorMap: Record<string, string> = {
 	clblack: '#000000',
 	clwhite: '#ffffff',
 	clsilver: '#c0c0c0',
+	clbtnface: '#c0c0c0',
+	clactiveborder: '#c0c0c0',
+	clactivecaption: '#808080',
+	clbackground: '#000000',
+	clbtnhighlight: '#ffffff',
+	clbtnshadow: '#808080',
+	clbtntext: '#000000',
+	clcaptiontext: '#ffffff',
+	cldefault: '#000000',
+	clgradientactivecaption: '#000080',
+	clgradientinactivecaption: '#808080',
+	clgraytext: '#808080',
+	clhighlight: '#000080',
+	clhighlighttext: '#ffffff',
+	clinactiveborder: '#c0c0c0',
+	clinactivecaption: '#c0c0c0',
+	clinactivecaptiontext: '#808080',
+	clinfobk: '#ffffe1',
+	clinfotext: '#000000',
+	clmenu: '#c0c0c0',
+	clmenubar: '#f0f0f0',
+	clmenuhighlight: '#000080',
+	clmenutext: '#000000',
+	clnone: 'transparent',
+	clscrollbar: '#c0c0c0',
+	cl3ddkshadow: '#808080',
+	cl3dlight: '#c0c0c0',
+	clwindow: '#ffffff',
+	clwindowframe: '#000000',
+	clwindowtext: '#000000',
+	claliceblue: '#f0f8ff',
+	clantiquewhite: '#faebd7',
+	claquamarine: '#7fffd4',
+	clazure: '#f0ffff',
+	clbeige: '#f5f5dc',
+	clbisque: '#ffe4c4',
+	clblanchedalmond: '#ffebcd',
+	clblueviolet: '#8a2be2',
 	clgray: '#808080',
 	clred: '#ff0000',
 	cllime: '#00ff00',
@@ -34,7 +72,7 @@ const delphiColorMap: Record<string, string> = {
  * @param value The Delphi color name, hex value, or decimal color value to convert.
  * @returns The corresponding HTML color string.
  */
-function toHtmlColor(value: unknown): string {
+export function toHtmlColor(value: unknown): string {
 	const raw = String(value ?? '').trim();
 	if (!raw) {
 		return 'transparent';
@@ -435,7 +473,7 @@ export function renderComponent(component: DfmComponent, skipPosition = false): 
 					style="
 						${position}
 						${font}
-						background: ${toHtmlColor(component.properties.Color ?? 'transparent')};
+						background: ${toHtmlColor(component.properties.Color ?? 'clBtnFace')};
 						color: ${toHtmlColor(component.properties.FontColor ?? 'black')};
 						overflow: hidden;
 					"

@@ -6,7 +6,7 @@ import * as path from 'path';
 // as well as import your extension to test it
 import * as vscode from 'vscode';
 import { findComponentAtLine, findComponentByName, parseDfm } from '../dfmParser';
-import { renderComponent } from '../renderer';
+import { renderComponent, toHtmlColor } from '../renderer';
 import { getConstraintValue } from '../extension';
 // import * as myExtension from '../../extension';
 
@@ -33,6 +33,20 @@ end
 		assert.strictEqual(parsed[0].properties.FontHeight, '-24');
 		assert.strictEqual(parsed[0].properties.FontName, "'Arial'");
 		assert.strictEqual(parsed[0].properties.FontStyle, '[fsBold]');
+	});
+
+	test('maps Delphi named colors to HTML colors', () => {
+		const form = parseDfm(fs.readFileSync(path.join(__dirname, '..', '..', 'example', 'dlgEzipayManualCardNum.dfm'), 'utf8'))[0];
+		assert.strictEqual(form.properties.Color, 'clBtnFace');
+		assert.strictEqual(toHtmlColor(form.properties.Color), '#c0c0c0');
+		assert.strictEqual(toHtmlColor('clBtnFace'), '#c0c0c0');
+		assert.strictEqual(toHtmlColor('clActiveCaption'), '#808080');
+		assert.strictEqual(toHtmlColor('clHighlight'), '#000080');
+		assert.strictEqual(toHtmlColor('clInfoBk'), '#ffffe1');
+		assert.strictEqual(toHtmlColor('clMenu'), '#c0c0c0');
+		assert.strictEqual(toHtmlColor('clNone'), 'transparent');
+		assert.strictEqual(toHtmlColor('clAliceBlue'), '#f0f8ff');
+		assert.strictEqual(toHtmlColor('clBlueViolet'), '#8a2be2');
 	});
 
 	test('reads form constraint values whether they are nested or flattened', () => {
@@ -130,6 +144,17 @@ end
 		assert.strictEqual(parsed[0].properties.ColumnCollection.length, 2);
 		assert.strictEqual(parsed[0].properties.RowCollection.length, 3);
 		assert.strictEqual(parsed[0].properties.ColumnCollection[0].Value, '17.355371900826440000');
+	});
+
+	test('renders a TPanel with the Delphi button-face default', () => {
+		const html = renderComponent({
+			name: 'Panel1',
+			className: 'TPanel',
+			properties: { Left: '0', Top: '0', Width: '460', Height: '264' },
+			children: []
+		} as any);
+
+		assert.ok(html.includes('background: #c0c0c0;'));
 	});
 
 	test('renders TGridPanel as a CSS grid', () => {
